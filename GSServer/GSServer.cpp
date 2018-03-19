@@ -43,7 +43,7 @@ int main() {
 			SendMovePacket(clientSock, packetBuf, cx, cy);
 			break;
 		case ClientMsg::KEY_DOWN:
-			if (cy < boardH - 1) cy += 1;
+			if (cy < BOARD_H - 1) cy += 1;
 			SendMovePacket(clientSock, packetBuf, cx, cy);
 			break;
 		case ClientMsg::KEY_LEFT:
@@ -51,7 +51,7 @@ int main() {
 			SendMovePacket(clientSock, packetBuf, cx, cy);
 			break;
 		case ClientMsg::KEY_RIGHT:
-			if (cx < boardW - 1) cx += 1;
+			if (cx < BOARD_W - 1) cx += 1;
 			SendMovePacket(clientSock, packetBuf, cx, cy);
 			break;
 		}
