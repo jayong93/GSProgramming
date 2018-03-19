@@ -152,6 +152,7 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Share\Shares.cpp" />
     <ClCompile Include="GSClient.cpp" />
   </ItemGroup>
   <ItemGroup>

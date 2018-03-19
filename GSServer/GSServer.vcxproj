@@ -20,8 +20,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Share\Shares.h" />
+    <ClInclude Include="GSServer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Share\Shares.cpp" />
     <ClCompile Include="GSServer.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
