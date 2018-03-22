@@ -8,13 +8,3 @@ void err_quit(LPCTSTR msg) {
 	exit(1);
 }
 
-int RecvAll(SOCKET sock, char * buf, size_t len, int flag) {
-	int receivedLen{ 0 };
-	int retval;
-	while (receivedLen < len) {
-		if ((retval = recv(sock, buf + receivedLen, len - receivedLen, flag)) == SOCKET_ERROR) err_quit(TEXT("recv"));
-		if (retval == 0) return 0;
-		receivedLen += retval;
-	}
-	return receivedLen;
-}
