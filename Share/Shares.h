@@ -1,6 +1,4 @@
 #pragma once
-#include <WinSock2.h>
-#include <memory>
 
 enum class MsgType { NONE, INPUT_MOVE, MOVE_CHARA };
 
@@ -15,14 +13,19 @@ struct ExtOverlapped {
 	WSAOVERLAPPED ov;
 	std::unique_ptr<MsgBase> msg;
 
-	ExtOverlapped(std::unique_ptr<MsgBase> msg) : msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+	explicit ExtOverlapped(std::unique_ptr<MsgBase> msg) : msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
 
 	ExtOverlapped(const ExtOverlapped&) = delete;
 	ExtOverlapped& operator=(const ExtOverlapped&) = delete;
 };
 
 class MsgReconstructor {
-
+	std::vector<byte> backBuf;
+	std::vector<byte> buf;
+	int bufLength;
+	std::function<void(const MsgBase*)> msgHandler;
+public:
+	MsgReconstructor(int bufLength, std::function<void(const MsgBase*)> msgHandler) : bufLength{ bufLength }, msgHandler{msgHandler} { backBuf.reserve(this->bufLength); buf.reserve(this->bufLength); }
 };
 
 #pragma pack(push, 1)

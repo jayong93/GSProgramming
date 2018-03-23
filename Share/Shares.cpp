@@ -1,3 +1,4 @@
+#include <stdafx.h>
 #include "Shares.h"
 
 void err_quit(LPCTSTR msg) {
