@@ -1,15 +1,15 @@
 #pragma comment(lib, "ws2_32")
 
-#include <WinSock2.h>
-#include <cstdio>
-#include "../Share/Shares.h"
+#include "stdafx.h"
 #include "GSServer.h"
+
+MsgReconstructor msgRecon{ 100, MessageHandler };
 
 int main() {
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
 
-	auto sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	auto sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
 	BOOL isNoDelay{ TRUE };
 	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&isNoDelay, sizeof(isNoDelay));
 
@@ -23,56 +23,49 @@ int main() {
 	listen(sock, SOMAXCONN);
 	sockaddr clientAddr;
 	int addrLen = sizeof(clientAddr);
-	auto clientSock = accept(sock, &clientAddr, &addrLen);
-	if (clientSock == INVALID_SOCKET) err_quit(TEXT("WSAAccept"));
-	printf_s("client has connected\n");
 
-	short dataLen{ 0 };
-	ClientMsg msg;
-	int cx{ 0 }, cy{ 0 };
-	char packetBuf[sizeof(short) + sizeof(ServerMsg) + sizeof(byte) * 2];
+	WSABUF recvBufs;
+	recvBufs.buf = msgRecon.GetBuffer();
+	recvBufs.len = msgRecon.GetSize();
 
 	while (true) {
-		if (RecvAll(clientSock, (char*)&dataLen, sizeof(dataLen), 0) == 0) break;
-		if (RecvAll(clientSock, (char*)&msg, sizeof(msg), 0) == 0) break;
-		printf_s("received packet from client\n");
-
-		switch (msg) {
-		case ClientMsg::KEY_UP:
-			if (cy > 0) cy -= 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_DOWN:
-			if (cy < BOARD_H - 1) cy += 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_LEFT:
-			if (cx > 0) cx -= 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_RIGHT:
-			if (cx < BOARD_W - 1) cx += 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		}
+		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
+		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
+		//u_long isNonBlock{ TRUE };
+		//ioctlsocket(clientSock, FIONBIO, &isNonBlock);
+		printf_s("client has connected\n");
+		auto eov = new ExtOverlapped(clientSock, msgRecon);
+		OverlappedRecv(*eov);
 	}
 
 	shutdown(sock, SD_BOTH);
 	closesocket(sock);
-	if (clientSock) {
-		shutdown(clientSock, SD_BOTH);
-		closesocket(clientSock);
-	}
 	WSACleanup();
 }
 
 void SendMovePacket(SOCKET sock, char* buf, int x, int y) {
-	auto& totalLen = *(short*)buf;
-	auto& msg = *(ServerMsg*)(buf + sizeof(totalLen));
-	totalLen = sizeof(totalLen) + sizeof(msg) + sizeof(byte) * 2;
-	msg = ServerMsg::MOVE_CHARA;
-	*(buf + sizeof(totalLen) + sizeof(msg)) = (byte)x;
-	*(buf + sizeof(totalLen) + sizeof(msg) + sizeof(byte)) = (byte)y;
+}
 
-	send(sock, (char*)buf, totalLen, 0);
+void MessageHandler(const MsgBase & msg)
+{
+}
+
+bool OverlappedRecv(ExtOverlapped & ov)
+{
+	if (nullptr == ov.msgRecon) return false;
+	WSABUF wb;
+	wb.buf = ov.msgRecon->GetBuffer();
+	wb.len = ov.msgRecon->GetSize();
+	const int retval = WSARecv(ov.s, &wb, 1, nullptr, 0, (LPWSAOVERLAPPED)&ov, CompletionCallback);
+	if (0 == retval || WSAGetLastError() == WSA_IO_PENDING) return true;
+	return false;
+}
+
+bool OverlappedSend(ExtOverlapped & ov)
+{
+	return false;
+}
+
+void CompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag)
+{
 }

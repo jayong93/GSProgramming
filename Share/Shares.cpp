@@ -1,11 +1,61 @@
 #include <stdafx.h>
 #include "Shares.h"
 
-void err_quit(LPCTSTR msg) {
+void err_quit_wsa(LPCTSTR msg) {
 	LPVOID msgBuf;
 	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, WSAGetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&msgBuf, 0, NULL);
 	MessageBox(NULL, (LPCTSTR)msgBuf, msg, MB_ICONERROR);
 	LocalFree(msgBuf);
+	WSACleanup();
 	exit(1);
 }
 
+void MsgReconstructor::Recv(SOCKET s)
+{
+	bufSize += recv(s, (char*)buf.data() + bufSize, bufMaxLen - bufSize, 0);
+	this->Reconstruct();
+}
+
+void MsgReconstructor::Reconstruct()
+{
+	char* curPos = buf.data();
+	while (bufSize > 0) {
+		if (preRemainSize > 0) {
+			if (bufSize >= preRemainSize) {
+				memcpy_s(backBuf.data() + backBufSize, backBufMaxLen - backBufSize, curPos, preRemainSize);
+				msgHandler(*reinterpret_cast<MsgBase*>(backBuf.data()));
+				bufSize -= preRemainSize; curPos += preRemainSize;
+				backBufSize = 0; preRemainSize = 0;
+			}
+			else {
+				memcpy_s(backBuf.data() + backBufSize, backBufMaxLen - backBufSize, curPos, bufSize);
+				backBufSize += bufSize; preRemainSize -= bufSize;
+				bufSize = 0;
+				return;
+			}
+		}
+		else if (bufSize < sizeof(short)) {
+			if (curPos != buf.data()) {
+				memcpy_s(buf.data(), bufMaxLen, curPos, bufSize);
+			}
+			return;
+		}
+		else {
+			short packetSize = *reinterpret_cast<short*>(curPos);
+			if (packetSize > bufSize) {
+				if (backBufMaxLen < packetSize) {
+					backBuf.reserve(packetSize);
+					backBufMaxLen = packetSize;
+				}
+				memcpy_s(backBuf.data(), backBufMaxLen, curPos, bufSize);
+				preRemainSize = packetSize - bufSize;
+				bufSize = 0;
+				return;
+			}
+			else { 
+				msgHandler(*reinterpret_cast<MsgBase*>(curPos));
+				bufSize -= packetSize; curPos += packetSize;
+			}
+		}
+	}
+}
