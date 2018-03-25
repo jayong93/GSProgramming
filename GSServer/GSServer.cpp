@@ -1,15 +1,17 @@
 #pragma comment(lib, "ws2_32")
 
-#include <WinSock2.h>
-#include <cstdio>
-#include "../Share/Shares.h"
+#include "stdafx.h"
 #include "GSServer.h"
+
+int nextId{ 0 };
+std::deque<unsigned int> freeIdQueue;
+std::map<unsigned int, Client> clientMap;
 
 int main() {
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
 
-	auto sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	auto sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
 	BOOL isNoDelay{ TRUE };
 	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&isNoDelay, sizeof(isNoDelay));
 
@@ -23,56 +25,126 @@ int main() {
 	listen(sock, SOMAXCONN);
 	sockaddr clientAddr;
 	int addrLen = sizeof(clientAddr);
-	auto clientSock = accept(sock, &clientAddr, &addrLen);
-	if (clientSock == INVALID_SOCKET) err_quit(TEXT("WSAAccept"));
-	printf_s("client has connected\n");
 
-	short dataLen{ 0 };
-	ClientMsg msg;
-	int cx{ 0 }, cy{ 0 };
-	char packetBuf[sizeof(short) + sizeof(ServerMsg) + sizeof(byte) * 2];
+	std::random_device rd;
+	std::mt19937_64 rndGen{ rd() };
+	std::uniform_int_distribution<int> posRange{ 0, BOARD_W };
+	std::uniform_int_distribution<int> colorRange{ 0, 255 };
 
+	int retval;
 	while (true) {
-		if (RecvAll(clientSock, (char*)&dataLen, sizeof(dataLen), 0) == 0) break;
-		if (RecvAll(clientSock, (char*)&msg, sizeof(msg), 0) == 0) break;
-		printf_s("received packet from client\n");
-
-		switch (msg) {
-		case ClientMsg::KEY_UP:
-			if (cy > 0) cy -= 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_DOWN:
-			if (cy < BOARD_H - 1) cy += 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_LEFT:
-			if (cx > 0) cx -= 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
-		case ClientMsg::KEY_RIGHT:
-			if (cx < BOARD_W - 1) cx += 1;
-			SendMovePacket(clientSock, packetBuf, cx, cy);
-			break;
+		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
+		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
+		printf_s("client has connected\n");
+		unsigned int clientId;
+		if (freeIdQueue.empty()) clientId = nextId++;
+		else {
+			clientId = freeIdQueue.front(); freeIdQueue.pop_front();
 		}
+		clientMap.emplace(std::make_pair(clientId, Client( clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen), MessageHandler )));
+		Client& newClient = clientMap[clientId];
+
+		std::shared_ptr<MsgBase> inMsg{ new MsgClientIn{ newClient.id, newClient.x, newClient.y, newClient.color } };
+		for (auto& c : clientMap) {
+			auto eov = new ExtOverlapped{ c.second.s, inMsg };
+			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+
+			if (c.first == clientId) continue;
+			std::shared_ptr<MsgBase> otherInMsg{ new MsgClientIn{ c.second.id, c.second.x, c.second.y, c.second.color } };
+			eov = new ExtOverlapped{ newClient.s, otherInMsg };
+			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+		}
+
+		auto eov = new ExtOverlapped(clientSock, newClient);
+		if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
 	}
 
 	shutdown(sock, SD_BOTH);
 	closesocket(sock);
-	if (clientSock) {
-		shutdown(clientSock, SD_BOTH);
-		closesocket(clientSock);
-	}
 	WSACleanup();
 }
 
-void SendMovePacket(SOCKET sock, char* buf, int x, int y) {
-	auto& totalLen = *(short*)buf;
-	auto& msg = *(ServerMsg*)(buf + sizeof(totalLen));
-	totalLen = sizeof(totalLen) + sizeof(msg) + sizeof(byte) * 2;
-	msg = ServerMsg::MOVE_CHARA;
-	*(buf + sizeof(totalLen) + sizeof(msg)) = (byte)x;
-	*(buf + sizeof(totalLen) + sizeof(msg) + sizeof(byte)) = (byte)y;
+void MessageHandler(SOCKET s, const MsgBase & msg, void* ov)
+{
+	if (ov) {
+		auto& eov = *reinterpret_cast<ExtOverlapped*>(ov);
+		auto& client = *eov.client;
+		switch (msg.type) {
+		case MsgType::INPUT_MOVE:
+			{
+				auto& rMsg = *(const MsgInputMove*)(&msg);
+				client.x = max(0, min(client.x + rMsg.dx, BOARD_W - 1));
+				client.y = max(0, min(client.y + rMsg.dy, BOARD_H - 1));
+				std::shared_ptr<MsgBase> moveMsg{ new MsgMoveCharacter{ client.id, client.x, client.y } };
+				for (auto& c : clientMap) {
+					auto ov = new ExtOverlapped{ c.second.s, moveMsg };
+					int retval;
+					if (0 < (retval = OverlappedSend(*ov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
+			}
+			break;
+		}
+	}
+}
 
-	send(sock, (char*)buf, totalLen, 0);
+int OverlappedRecv(ExtOverlapped & ov)
+{
+	WSABUF wb;
+	wb.buf = ov.client->msgRecon.GetBuffer();
+	wb.len = ov.client->msgRecon.GetSize();
+	DWORD flags{ 0 };
+	const int retval = WSARecv(ov.s, &wb, 1, nullptr, &flags, (LPWSAOVERLAPPED)&ov, RecvCompletionCallback);
+	int error;
+	if (0 == retval || WSA_IO_PENDING == (error = WSAGetLastError())) return 0;
+	return error;
+}
+
+int OverlappedSend(ExtOverlapped & ov)
+{
+	if (!ov.msg) return -1;
+	WSABUF wb;
+	wb.buf = (char*)ov.msg.get();
+	wb.len = ov.msg->len;
+	const int retval = WSASend(ov.s, &wb, 1, nullptr, 0, (LPWSAOVERLAPPED)&ov, SendCompletionCallback);
+	int error;
+	if (0 == retval || WSA_IO_PENDING == (error = WSAGetLastError())) return 0;
+	return error;
+}
+
+void SendCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag)
+{
+	auto& eov = *reinterpret_cast<ExtOverlapped*>(ov);
+	if (0 != error || 0 == transferred) {
+		RemoveClient(*eov.client);
+		return;
+	}
+	delete &eov;
+}
+
+void RecvCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag)
+{
+	auto& eov = *reinterpret_cast<ExtOverlapped*>(ov);
+	if (0 != error || 0 == transferred) {
+		RemoveClient(*eov.client);
+		return;
+	}
+	eov.client->msgRecon.AddSize(transferred);
+	eov.client->msgRecon.Reconstruct(eov.s, &eov);
+	auto nov = new ExtOverlapped{ eov.s, *eov.client };
+	int retval;
+	if (0 < (retval = OverlappedRecv(*nov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
+	delete &eov;
+}
+
+void RemoveClient(Client & client)
+{
+	closesocket(client.s);
+	auto id = client.id;
+	freeIdQueue.push_front(id);
+	clientMap.erase(id);
+	std::shared_ptr<MsgBase> msg{ new MsgClientOut{id} };
+	for (auto& c : clientMap) {
+		auto ov = new ExtOverlapped{ c.second.s, msg };
+		OverlappedSend(*ov);
+	}
 }
