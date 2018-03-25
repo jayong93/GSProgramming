@@ -6,3 +6,6 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
+#include <deque>
+#include <map>
+#include <random>

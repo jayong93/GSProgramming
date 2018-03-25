@@ -23,14 +23,14 @@ void MsgReconstructor::Recv(SOCKET s)
 	this->Reconstruct(s);
 }
 
-void MsgReconstructor::Reconstruct(SOCKET s)
+void MsgReconstructor::Reconstruct(SOCKET s, void* ov)
 {
 	char* curPos = buf.data();
 	while (bufSize > 0) {
 		if (preRemainSize > 0) {
 			if (bufSize >= preRemainSize) {
 				memcpy_s(backBuf.data() + backBufSize, backBufMaxLen - backBufSize, curPos, preRemainSize);
-				msgHandler(s, *reinterpret_cast<MsgBase*>(backBuf.data()));
+				msgHandler(s, *reinterpret_cast<MsgBase*>(backBuf.data()), ov);
 				bufSize -= preRemainSize; curPos += preRemainSize;
 				backBufSize = 0; preRemainSize = 0;
 			}
@@ -60,7 +60,7 @@ void MsgReconstructor::Reconstruct(SOCKET s)
 				return;
 			}
 			else { 
-				msgHandler(s, *reinterpret_cast<MsgBase*>(curPos));
+				msgHandler(s, *reinterpret_cast<MsgBase*>(curPos), ov);
 				bufSize -= packetSize; curPos += packetSize;
 			}
 		}
