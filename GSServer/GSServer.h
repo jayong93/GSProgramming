@@ -16,7 +16,8 @@ struct ExtOverlapped {
 };
 
 void SendMovePacket(SOCKET sock, char* buf, int x, int y);
-void MessageHandler(const MsgBase& msg);
-bool OverlappedRecv(ExtOverlapped& ov);
-bool OverlappedSend(ExtOverlapped& ov);
-void CALLBACK CompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
+void MessageHandler(SOCKET s, const MsgBase& msg);
+int OverlappedRecv(ExtOverlapped& ov);
+int OverlappedSend(ExtOverlapped& ov);
+void CALLBACK SendCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
+void CALLBACK RecvCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
