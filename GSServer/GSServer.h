@@ -4,9 +4,9 @@
 struct Client;
 
 struct ServerMsgHandler : public MsgHandler {
-	unsigned int clientId;
+	Client& client;
 
-	ServerMsgHandler(unsigned int id) : clientId{ id } {}
+	ServerMsgHandler(Client& c) : client{ c } {}
 	virtual void ProcessMessage(SOCKET s, const MsgBase& msg);
 	~ServerMsgHandler() {}
 };
@@ -19,7 +19,7 @@ struct Client {
 	char x, y;
 
 	Client() : msgRecon{}, color{ 0,0,0 } {}
-	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, *new ServerMsgHandler{id} }, s{ s }, color{ c }, x{ x }, y{ y } {}
+	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, *new ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
 	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y } {}
 	Client& operator=(Client&& o) {
 		id = o.id;

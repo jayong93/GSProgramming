@@ -5,7 +5,7 @@
 
 int nextId{ 0 };
 std::deque<unsigned int> freeIdQueue;
-std::map<unsigned int, Client> clientMap;
+std::map<unsigned int, std::unique_ptr<Client>> clientMap;
 
 int main() {
 	WSADATA wsaData;
@@ -28,7 +28,7 @@ int main() {
 
 	std::random_device rd;
 	std::mt19937_64 rndGen{ rd() };
-	std::uniform_int_distribution<int> posRange{ 0, BOARD_W };
+	std::uniform_int_distribution<int> posRange{ 0, BOARD_W-1 };
 	std::uniform_int_distribution<int> colorRange{ 0, 255 };
 
 	int retval;
@@ -41,18 +41,19 @@ int main() {
 		else {
 			clientId = freeIdQueue.front(); freeIdQueue.pop_front();
 		}
-		clientMap.emplace(std::make_pair(clientId, Client(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen))));
-		Client& newClient = clientMap[clientId];
+		clientMap.emplace(std::make_pair(clientId, std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen))));
+		Client& newClient = *clientMap[clientId];
 
 		std::shared_ptr<MsgBase> inMsg{ new MsgClientIn{ newClient.id, newClient.x, newClient.y, newClient.color } };
 		for (auto& c : clientMap) {
-			auto eov = new ExtOverlapped{ c.second.s, inMsg };
+			auto eov = new ExtOverlapped{ c.second->s, inMsg };
 			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 
-			if (c.first == clientId) continue;
-			std::shared_ptr<MsgBase> otherInMsg{ new MsgClientIn{ c.second.id, c.second.x, c.second.y, c.second.color } };
-			eov = new ExtOverlapped{ newClient.s, otherInMsg };
-			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+			if (c.first != clientId) {
+				std::shared_ptr<MsgBase> otherInMsg{ new MsgClientIn{ c.second->id, c.second->x, c.second->y, c.second->color } };
+				eov = new ExtOverlapped{ newClient.s, std::move(otherInMsg) };
+				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+			}
 		}
 
 		auto eov = new ExtOverlapped(clientSock, newClient);
@@ -121,14 +122,13 @@ void RemoveClient(Client & client)
 	clientMap.erase(id);
 	std::shared_ptr<MsgBase> msg{ new MsgClientOut{id} };
 	for (auto& c : clientMap) {
-		auto ov = new ExtOverlapped{ c.second.s, msg };
+		auto ov = new ExtOverlapped{ c.second->s, msg };
 		OverlappedSend(*ov);
 	}
 }
 
 void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 {
-	auto& client = clientMap[clientId];
 	switch (msg.type) {
 	case MsgType::INPUT_MOVE:
 		{
@@ -137,7 +137,7 @@ void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 			client.y = max(0, min(client.y + rMsg.dy, BOARD_H - 1));
 			std::shared_ptr<MsgBase> moveMsg{ new MsgMoveCharacter{ client.id, client.x, client.y } };
 			for (auto& c : clientMap) {
-				auto ov = new ExtOverlapped{ c.second.s, moveMsg };
+				auto ov = new ExtOverlapped{ c.second->s, moveMsg };
 				int retval;
 				if (0 < (retval = OverlappedSend(*ov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 			}
