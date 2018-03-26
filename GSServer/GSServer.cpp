@@ -44,6 +44,7 @@ int main() {
 		clientMap.emplace(std::make_pair(clientId, std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen))));
 		Client& newClient = *clientMap[clientId];
 
+		// 클라이언트 접속 메시지 브로드캐스팅
 		std::shared_ptr<MsgBase> inMsg{ new MsgClientIn{ newClient.id, newClient.x, newClient.y, newClient.color } };
 		for (auto& c : clientMap) {
 			auto eov = new ExtOverlapped{ c.second->s, inMsg };
