@@ -68,6 +68,7 @@ int main() {
 
 int OverlappedRecv(ExtOverlapped & ov)
 {
+	if (ov.client == nullptr) return -1;
 	WSABUF wb;
 	wb.buf = ov.client->msgRecon.GetBuffer();
 	wb.len = ov.client->msgRecon.GetSize();
