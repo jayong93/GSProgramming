@@ -10,6 +10,11 @@ void err_quit_wsa(DWORD errCode, LPCTSTR msg);
 
 struct MsgBase;
 
+struct MsgHandler {
+	virtual void ProcessMessage(SOCKET s, const MsgBase& msg) = 0;
+	virtual ~MsgHandler() {}
+};
+
 class MsgReconstructor {
 	std::vector<char> backBuf;
 	std::vector<char> buf;
@@ -18,10 +23,11 @@ class MsgReconstructor {
 	size_t bufMaxLen;
 	size_t bufSize;
 	size_t preRemainSize;
-	std::function<void(SOCKET, const MsgBase&, void*)> msgHandler;
+	std::unique_ptr<MsgHandler> msgHandler;
 
 public:
-	MsgReconstructor(size_t bufLength, std::function<void(SOCKET, const MsgBase&, void*)> msgHandler) : bufMaxLen{ bufLength }, bufSize{ 0 }, preRemainSize{ 0 }, msgHandler{ msgHandler } { backBuf.reserve(bufMaxLen); buf.reserve(bufMaxLen); }
+	MsgReconstructor() {}
+	MsgReconstructor(size_t bufLength, MsgHandler& msgHandler) : bufMaxLen{ bufLength }, bufSize{ 0 }, preRemainSize{ 0 }, msgHandler{ &msgHandler } { backBuf.reserve(bufMaxLen); buf.reserve(bufMaxLen); }
 	MsgReconstructor(MsgReconstructor&& o) : backBuf{ std::move(o.backBuf) }, buf{ std::move(o.buf) }, backBufMaxLen{ o.backBufMaxLen }, backBufSize{ o.backBufSize }, bufMaxLen{ o.bufMaxLen }, bufSize{ o.bufSize }, preRemainSize{ o.preRemainSize }, msgHandler{ std::move(o.msgHandler) } {}
 	MsgReconstructor& operator=(MsgReconstructor&& o) {
 		backBuf = std::move(o.backBuf);
@@ -35,7 +41,7 @@ public:
 	}
 
 	void Recv(SOCKET s);
-	void Reconstruct(SOCKET s, void* ov = nullptr);
+	void Reconstruct(SOCKET s);
 	char* GetBuffer() { return reinterpret_cast<char*>(buf.data() + bufSize); }
 	size_t GetSize() const { return bufMaxLen - bufSize; }
 	void AddSize(size_t size) { bufSize += size; }

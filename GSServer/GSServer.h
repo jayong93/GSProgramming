@@ -1,6 +1,16 @@
 #pragma once
 #include "../Share/Shares.h"
 
+struct Client;
+
+struct ServerMsgHandler : public MsgHandler {
+	unsigned int clientId;
+
+	ServerMsgHandler(unsigned int id) : clientId{ id } {}
+	virtual void ProcessMessage(SOCKET s, const MsgBase& msg);
+	~ServerMsgHandler() {}
+};
+
 struct Client {
 	unsigned int id;
 	MsgReconstructor msgRecon;
@@ -8,8 +18,8 @@ struct Client {
 	Color color;
 	char x, y;
 
-	Client() : msgRecon{ 0, nullptr }, color{ 0,0,0 } {}
-	Client(unsigned int id, SOCKET s, Color c, char x, char y, std::function<void(SOCKET, const MsgBase&, void*)> handler) : id{ id }, msgRecon{ 100, handler }, s{ s }, color{ c }, x{ x }, y{ y } {}
+	Client() : msgRecon{}, color{ 0,0,0 } {}
+	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, *new ServerMsgHandler{id} }, s{ s }, color{ c }, x{ x }, y{ y } {}
 	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y } {}
 	Client& operator=(Client&& o) {
 		id = o.id;
@@ -35,7 +45,6 @@ struct ExtOverlapped {
 	ExtOverlapped& operator=(const ExtOverlapped&) = delete;
 };
 
-void MessageHandler(SOCKET s, const MsgBase& msg, void* ov);
 int OverlappedRecv(ExtOverlapped& ov);
 int OverlappedSend(ExtOverlapped& ov);
 void CALLBACK SendCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
