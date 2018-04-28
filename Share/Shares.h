@@ -3,8 +3,8 @@
 enum class MsgType { NONE, INPUT_MOVE, GIVE_ID, MOVE_OBJ, PUT_OBJ, REMOVE_OBJ };
 
 constexpr u_short GS_PORT = 9011;
-constexpr unsigned int BOARD_W = 100, BOARD_H = 100;
-constexpr unsigned int VIEW_SIZE = 11;
+constexpr int BOARD_W = 100, BOARD_H = 100; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
+constexpr int VIEW_SIZE = 11;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
