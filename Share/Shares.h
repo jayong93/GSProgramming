@@ -1,9 +1,10 @@
 #pragma once
 
-enum class MsgType { NONE, INPUT_MOVE, MOVE_OBJ, PUT_OBJ, REMOVE_OBJ };
+enum class MsgType { NONE, INPUT_MOVE, GIVE_ID, MOVE_OBJ, PUT_OBJ, REMOVE_OBJ };
 
 constexpr u_short GS_PORT = 9011;
-constexpr int BOARD_W = 100, BOARD_H = 100;
+constexpr unsigned int BOARD_W = 100, BOARD_H = 100;
+constexpr unsigned int VIEW_SIZE = 11;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
@@ -66,6 +67,12 @@ struct MsgInputMove : public MsgBase {
 	char dx, dy;
 
 	MsgInputMove(char dx, char dy) : MsgBase{ sizeof(MsgInputMove), MsgType::INPUT_MOVE }, dx{ dx }, dy{ dy } {}
+};
+
+struct MsgGiveID : public MsgBase {
+	unsigned int id;
+
+	explicit MsgGiveID(unsigned int id) : MsgBase{ sizeof(MsgGiveID), MsgType::GIVE_ID }, id{ id } {}
 };
 
 struct MsgMoveObject : public MsgBase {

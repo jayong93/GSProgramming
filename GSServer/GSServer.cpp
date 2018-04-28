@@ -118,14 +118,19 @@ void AcceptThreadFunc()
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 		printf_s("client has connected\n");
 		unsigned int clientId{ nextId++ };
-		clientMap.emplace(std::make_pair(clientId, std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen))));
+		clientMap.emplace(clientId, std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen)));
 		Client& newClient = *clientMap[clientId];
+		CreateIoCompletionPort((HANDLE)clientSock, iocpObject, clientId, 0);
+
+		std::shared_ptr<MsgBase> giveIDMsg{ new MsgGiveID{clientId} };
+		auto eov = new ExtOverlapped{ newClient.s, std::move(giveIDMsg) };
+		if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 
 		// 클라이언트 접속 메시지 브로드캐스팅
 		std::shared_ptr<MsgBase> inMsg{ new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color } };
 		for (auto& c : clientMap) {
 			std::shared_lock<std::shared_timed_mutex> lg{ c.second->lock };
-			auto eov = new ExtOverlapped{ c.second->s, inMsg };
+			eov = new ExtOverlapped{ c.second->s, inMsg };
 			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 
 			if (c.first != clientId) {
@@ -135,7 +140,7 @@ void AcceptThreadFunc()
 			}
 		}
 
-		auto eov = new ExtOverlapped(clientSock, newClient);
+		eov = new ExtOverlapped(clientSock, newClient);
 		if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
 	}
 
