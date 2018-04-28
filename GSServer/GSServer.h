@@ -1,6 +1,7 @@
 #pragma once
 #include "../Share/Shares.h"
 
+using Sector = std::unordered_set<int>;
 struct Client;
 
 struct ServerMsgHandler : public MsgHandler {
@@ -12,6 +13,7 @@ struct ServerMsgHandler : public MsgHandler {
 };
 
 struct Client {
+	std::shared_timed_mutex lock;
 	unsigned int id;
 	MsgReconstructor msgRecon;
 	SOCKET s;
@@ -35,7 +37,8 @@ struct ExtOverlapped {
 	WSAOVERLAPPED ov;
 	SOCKET s;
 	Client* client;
-	std::shared_ptr<MsgBase> msg;
+	std::shared_ptr<MsgBase> msg; // 동일한 메시지를 Broadcasting하는 경우, shared_ptr로 공유해서 사용
+	bool isRecv{ false };
 
 	ExtOverlapped(SOCKET s, std::shared_ptr<MsgBase>& msg) : s{ s }, client{ nullptr }, msg{ msg } { ZeroMemory(&ov, sizeof(ov)); }
 	ExtOverlapped(SOCKET s, std::shared_ptr<MsgBase>&& msg) : s{ s }, client{ nullptr }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
@@ -47,6 +50,8 @@ struct ExtOverlapped {
 
 int OverlappedRecv(ExtOverlapped& ov);
 int OverlappedSend(ExtOverlapped& ov);
-void CALLBACK SendCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
-void CALLBACK RecvCompletionCallback(DWORD error, DWORD transferred, LPWSAOVERLAPPED ov, DWORD flag);
+void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
+void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
 void RemoveClient(Client& client);
+void AcceptThreadFunc();
+void WorkerThreadFunc();
