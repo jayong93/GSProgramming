@@ -5,6 +5,7 @@
 
 unsigned int nextId{ 0 };
 std::unordered_map<unsigned int, std::unique_ptr<Client>> clientMap;
+std::shared_timed_mutex clientMapLock;
 HANDLE iocpObject;
 std::vector<Sector> sectorList;
 
@@ -82,11 +83,17 @@ void RemoveClient(Client & client)
 {
 	closesocket(client.s);
 	auto id = client.id;
-	clientMap.erase(id);
+	{
+		std::lock_guard<std::shared_timed_mutex> lg{ clientMapLock };
+		clientMap.erase(id);
+	}
 	std::shared_ptr<MsgBase> msg{ new MsgRemoveObject{id} };
-	for (auto& c : clientMap) {
-		auto ov = new ExtOverlapped{ c.second->s, msg };
-		OverlappedSend(*ov);
+	{
+		std::shared_lock<std::shared_timed_mutex> lg{ clientMapLock };
+		for (auto& c : clientMap) {
+			auto ov = new ExtOverlapped{ c.second->s, msg };
+			OverlappedSend(*ov);
+		}
 	}
 }
 
@@ -116,11 +123,15 @@ void AcceptThreadFunc()
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
-		printf_s("client has connected\n");
 		unsigned int clientId{ nextId++ };
-		clientMap.emplace(clientId, std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen)));
-		Client& newClient = *clientMap[clientId];
+		auto newClientPtr = std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen));
+		Client& newClient = *newClientPtr.get();
+		{
+			std::lock_guard<std::shared_timed_mutex> lg{ clientMapLock };
+			clientMap.emplace(clientId, std::move(newClientPtr));
+		}
 		CreateIoCompletionPort((HANDLE)clientSock, iocpObject, clientId, 0);
+		printf_s("client(id: %d) has connected\n", clientId);
 
 		std::shared_ptr<MsgBase> giveIDMsg{ new MsgGiveID{clientId} };
 		auto eov = new ExtOverlapped{ newClient.s, std::move(giveIDMsg) };
@@ -128,18 +139,20 @@ void AcceptThreadFunc()
 
 		// 클라이언트 접속 메시지 브로드캐스팅
 		std::shared_ptr<MsgBase> inMsg{ new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color } };
-		for (auto& c : clientMap) {
-			std::shared_lock<std::shared_timed_mutex> lg{ c.second->lock };
-			eov = new ExtOverlapped{ c.second->s, inMsg };
-			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
-
-			if (c.first != clientId) {
-				std::shared_ptr<MsgBase> otherInMsg{ new MsgPutObject{ c.second->id, c.second->x, c.second->y, c.second->color } };
-				eov = new ExtOverlapped{ newClient.s, std::move(otherInMsg) };
+		{
+			std::shared_lock<std::shared_timed_mutex> lg{ clientMapLock };
+			for (auto& c : clientMap) {
+				eov = new ExtOverlapped{ c.second->s, inMsg };
 				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
-			}
-		}
 
+				if (c.first != clientId) {
+					std::shared_ptr<MsgBase> otherInMsg{ new MsgPutObject{ c.second->id, c.second->x, c.second->y, c.second->color } };
+					eov = new ExtOverlapped{ newClient.s, std::move(otherInMsg) };
+					if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
+			}
+
+		}
 		eov = new ExtOverlapped(clientSock, newClient);
 		if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
 	}
@@ -168,17 +181,19 @@ void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 	case MsgType::INPUT_MOVE:
 		{
 			{
-				std::lock_guard<std::shared_timed_mutex> lg{ client.lock };
 				auto& rMsg = *(const MsgInputMove*)(&msg);
 				client.x = max(0, min(client.x + rMsg.dx, BOARD_W - 1));
 				client.y = max(0, min(client.y + rMsg.dy, BOARD_H - 1));
 			}
 			std::shared_ptr<MsgBase> moveMsg{ new MsgMoveObject{ client.id, client.x, client.y } };
-			for (auto& c : clientMap) {
-				std::shared_lock<std::shared_timed_mutex> lg{ c.second->lock };
-				auto ov = new ExtOverlapped{ c.second->s, moveMsg };
-				int retval;
-				if (0 < (retval = OverlappedSend(*ov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+			{
+				std::shared_lock<std::shared_timed_mutex> lg{ clientMapLock };
+				for (auto& c : clientMap) {
+					auto ov = new ExtOverlapped{ c.second->s, moveMsg };
+					int retval;
+					if (0 < (retval = OverlappedSend(*ov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
+
 			}
 		}
 		break;
