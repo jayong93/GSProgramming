@@ -1,7 +1,7 @@
 #pragma once
 #include "../Share/Shares.h"
 
-using Sector = std::unordered_set<int>;
+using Sector = std::unordered_set<unsigned int>;
 struct Client;
 
 struct ServerMsgHandler : public MsgHandler {
@@ -19,10 +19,11 @@ struct Client {
 	SOCKET s;
 	Color color;
 	char x, y;
+	std::unordered_set<unsigned int> viewList;
 
 	Client() : msgRecon{}, color{ 0,0,0 } {}
 	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, *new ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
-	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y } {}
+	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y }, viewList{ std::move(o.viewList) } {}
 	Client& operator=(Client&& o) {
 		id = o.id;
 		msgRecon = std::move(o.msgRecon);
@@ -30,6 +31,7 @@ struct Client {
 		color = o.color;
 		x = o.x;
 		y = o.y;
+		viewList = std::move(o.viewList);
 	}
 };
 
@@ -55,3 +57,7 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
 void RemoveClient(Client& client);
 void AcceptThreadFunc();
 void WorkerThreadFunc();
+unsigned int PositionToSectorIndex(unsigned int x, unsigned int y);
+std::vector<Sector*> GetNearSectors(unsigned int sectorIdx);
+std::unordered_set<unsigned int> GetNearList(Client& c);
+void UpdateViewList(Client& c);
