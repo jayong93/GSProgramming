@@ -71,8 +71,11 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 		RemoveClient(*eov.client);
 		return;
 	}
+
+	// 하나의 소켓에 대한 Recv는 동시간에 1개 밖에 존재하지 않기 때문에 client에 lock을 할 필요 없음
 	eov.client->msgRecon.AddSize(transferred);
 	eov.client->msgRecon.Reconstruct(eov.s);
+
 	auto nov = new ExtOverlapped{ eov.s, *eov.client };
 	int retval;
 	if (0 < (retval = OverlappedRecv(*nov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
@@ -180,8 +183,9 @@ void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 	switch (msg.type) {
 	case MsgType::INPUT_MOVE:
 		{
+			auto& rMsg = *(const MsgInputMove*)(&msg);
 			{
-				auto& rMsg = *(const MsgInputMove*)(&msg);
+				std::lock_guard<std::shared_timed_mutex> lg{ client.lock };
 				client.x = max(0, min(client.x + rMsg.dx, BOARD_W - 1));
 				client.y = max(0, min(client.y + rMsg.dy, BOARD_H - 1));
 			}
@@ -193,7 +197,6 @@ void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 					int retval;
 					if (0 < (retval = OverlappedSend(*ov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 				}
-
 			}
 		}
 		break;
