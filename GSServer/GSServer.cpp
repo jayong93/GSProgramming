@@ -314,12 +314,13 @@ void ServerMsgHandler::ProcessMessage(SOCKET s, const MsgBase & msg)
 				sectorList[prevSectorIdx].erase(client.id);
 				sectorList[newSectorIdx].emplace(client.id);
 			}
-			UpdateViewList(client);
 
 			int retval;
 			std::shared_ptr<MsgBase> moveMsg{ new MsgMoveObject{ client.id, client.x, client.y } };
 			auto eov = new ExtOverlapped{ client.s, std::move(moveMsg) };
 			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+
+			UpdateViewList(client);
 		}
 		break;
 	}
