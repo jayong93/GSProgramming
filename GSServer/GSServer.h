@@ -4,25 +4,26 @@
 using Sector = std::unordered_set<unsigned int>;
 struct Client;
 
-struct ServerMsgHandler : public MsgHandler {
-	Client& client;
+struct ServerMsgHandler {
+	Client* client;
 
-	ServerMsgHandler(Client& c) : client{ c } {}
-	virtual void ProcessMessage(SOCKET s, const MsgBase& msg);
+	ServerMsgHandler() : client{ nullptr } {}
+	ServerMsgHandler(Client& c) : client{ &c } {}
+	void operator()(SOCKET s, const MsgBase& msg);
 	~ServerMsgHandler() {}
 };
 
 struct Client {
 	std::shared_timed_mutex lock;
 	unsigned int id;
-	MsgReconstructor msgRecon;
+	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
 	Color color;
 	char x, y;
 	std::unordered_set<unsigned int> viewList;
 
 	Client() : msgRecon{}, color{ 0,0,0 } {}
-	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, *new ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
+	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
 	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y }, viewList{ std::move(o.viewList) } {}
 	Client& operator=(Client&& o) {
 		id = o.id;

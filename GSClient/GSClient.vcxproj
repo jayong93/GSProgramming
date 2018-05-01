@@ -155,6 +155,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Share\MsgReconstructor.h" />
     <ClInclude Include="..\Share\Shares.h" />
     <ClInclude Include="GSClient.h" />
     <ClInclude Include="resource.h" />
