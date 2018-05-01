@@ -1,4 +1,5 @@
 #pragma once
+#include "MsgReconstructor.h"
 
 enum class MsgType { NONE, INPUT_MOVE, GIVE_ID, MOVE_OBJ, PUT_OBJ, REMOVE_OBJ };
 
@@ -9,45 +10,6 @@ constexpr int PLAYER_VIEW_SIZE = 7;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
-
-struct MsgBase;
-
-struct MsgHandler {
-	virtual void ProcessMessage(SOCKET s, const MsgBase& msg) = 0;
-	virtual ~MsgHandler() {}
-};
-
-class MsgReconstructor {
-	std::vector<char> backBuf;
-	std::vector<char> buf;
-	size_t backBufMaxLen;
-	size_t backBufSize;
-	size_t bufMaxLen;
-	size_t bufSize;
-	size_t preRemainSize;
-	std::unique_ptr<MsgHandler> msgHandler;
-
-public:
-	MsgReconstructor() {}
-	MsgReconstructor(size_t bufLength, MsgHandler& msgHandler) : bufMaxLen{ bufLength }, bufSize{ 0 }, preRemainSize{ 0 }, msgHandler{ &msgHandler } { backBuf.reserve(bufMaxLen); buf.reserve(bufMaxLen); }
-	MsgReconstructor(MsgReconstructor&& o) : backBuf{ std::move(o.backBuf) }, buf{ std::move(o.buf) }, backBufMaxLen{ o.backBufMaxLen }, backBufSize{ o.backBufSize }, bufMaxLen{ o.bufMaxLen }, bufSize{ o.bufSize }, preRemainSize{ o.preRemainSize }, msgHandler{ std::move(o.msgHandler) } {}
-	MsgReconstructor& operator=(MsgReconstructor&& o) {
-		backBuf = std::move(o.backBuf);
-		buf = std::move(o.buf);
-		backBufMaxLen = o.backBufMaxLen;
-		backBufSize = o.backBufSize;
-		bufMaxLen = o.bufMaxLen;
-		bufSize = o.bufSize;
-		preRemainSize = o.preRemainSize;
-		msgHandler = std::move(o.msgHandler);
-	}
-
-	void Recv(SOCKET s);
-	void Reconstruct(SOCKET s);
-	char* GetBuffer() { return reinterpret_cast<char*>(buf.data() + bufSize); }
-	size_t GetSize() const { return bufMaxLen - bufSize; }
-	void AddSize(size_t size) { bufSize += size; }
-};
 
 #pragma pack(push, 1)
 struct Color {

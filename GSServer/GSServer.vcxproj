@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Share\MsgReconstructor.h" />
     <ClInclude Include="..\Share\Shares.h" />
     <ClInclude Include="GSServer.h" />
     <ClInclude Include="stdafx.h" />
