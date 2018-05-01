@@ -35,12 +35,13 @@ public:
 		msgHandler = std::move(o.msgHandler);
 	}
 
-	void Recv(SOCKET s)
+	int Recv(SOCKET s)
 	{
 		int retval = recv(s, (char*)buf.data() + bufSize, bufMaxLen - bufSize, 0);
-		if (SOCKET_ERROR == retval) return;
+		if (SOCKET_ERROR == retval) return WSAGetLastError();
 		bufSize += retval;
 		this->Reconstruct(s);
+		return 0;
 	}
 	void Reconstruct(SOCKET s)
 	{

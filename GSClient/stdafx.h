@@ -5,11 +5,10 @@
 #include <Windows.h>
 #include <CommCtrl.h>
 #include <string>
-#include <atomic>
+#include <mutex>
 #include <thread>
 #include <cstdlib>
 #include <memory>
-#include <deque>
 #include <vector>
 #include <functional>
 #include <tuple>
