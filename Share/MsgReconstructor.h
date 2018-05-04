@@ -22,7 +22,7 @@ class MsgReconstructor {
 
 public:
 	MsgReconstructor() {}
-	MsgReconstructor(size_t bufLength, const MSG_HANDLER& msgHandler) : bufMaxLen{ bufLength }, bufSize{ 0 }, preRemainSize{ 0 }, msgHandler{ msgHandler } { backBuf.reserve(bufMaxLen); buf.reserve(bufMaxLen); }
+	MsgReconstructor(size_t bufLength, const MSG_HANDLER& msgHandler) : bufMaxLen{ bufLength }, bufSize{ 0 }, backBufMaxLen{ bufLength }, backBufSize{ 0 }, preRemainSize{ 0 }, msgHandler{ msgHandler } { backBuf.resize(bufMaxLen); buf.resize(bufMaxLen); }
 	MsgReconstructor(MsgReconstructor&& o) : backBuf{ std::move(o.backBuf) }, buf{ std::move(o.buf) }, backBufMaxLen{ o.backBufMaxLen }, backBufSize{ o.backBufSize }, bufMaxLen{ o.bufMaxLen }, bufSize{ o.bufSize }, preRemainSize{ o.preRemainSize }, msgHandler{ std::move(o.msgHandler) } {}
 	MsgReconstructor& operator=(MsgReconstructor&& o) {
 		backBuf = std::move(o.backBuf);
@@ -76,10 +76,11 @@ public:
 				// 패킷이 잘려서 온 경우
 				if (packetSize > bufSize) {
 					if (backBufMaxLen < packetSize) {
-						backBuf.reserve(packetSize);
+						backBuf.resize(packetSize);
 						backBufMaxLen = packetSize;
 					}
 					memcpy_s(backBuf.data(), backBufMaxLen, curPos, bufSize);
+					backBufSize = bufSize;
 					preRemainSize = packetSize - bufSize;
 					bufSize = 0;
 					return;
