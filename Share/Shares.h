@@ -4,9 +4,9 @@
 enum class MsgType { NONE, INPUT_MOVE, GIVE_ID, MOVE_OBJ, PUT_OBJ, REMOVE_OBJ };
 
 constexpr u_short GS_PORT = 9011;
-constexpr int BOARD_W = 100, BOARD_H = 100; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
-constexpr int VIEW_SIZE = 11;
-constexpr int PLAYER_VIEW_SIZE = 7;
+constexpr int BOARD_W = 400, BOARD_H = 400; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
+constexpr int VIEW_SIZE = 20;
+constexpr int PLAYER_VIEW_SIZE = 15;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
@@ -27,9 +27,9 @@ struct MsgBase {
 };
 
 struct MsgInputMove : public MsgBase {
-	char dx, dy;
+	short dx, dy;
 
-	MsgInputMove(char dx, char dy) : MsgBase{ sizeof(MsgInputMove), MsgType::INPUT_MOVE }, dx{ dx }, dy{ dy } {}
+	MsgInputMove(short dx, short dy) : MsgBase{ sizeof(MsgInputMove), MsgType::INPUT_MOVE }, dx{ dx }, dy{ dy } {}
 };
 
 struct MsgGiveID : public MsgBase {
@@ -40,8 +40,8 @@ struct MsgGiveID : public MsgBase {
 
 struct MsgMoveObject : public MsgBase {
 	unsigned int id;
-	char x, y;
-	MsgMoveObject(unsigned int id, char x, char y) : MsgBase{ sizeof(MsgMoveObject), MsgType::MOVE_OBJ }, id{ id }, x{ x }, y{ y } {}
+	short x, y;
+	MsgMoveObject(unsigned int id, short x, short y) : MsgBase{ sizeof(MsgMoveObject), MsgType::MOVE_OBJ }, id{ id }, x{ x }, y{ y } {}
 };
 
 struct MsgRemoveObject : public MsgBase {
@@ -51,9 +51,9 @@ struct MsgRemoveObject : public MsgBase {
 
 struct MsgPutObject : public MsgBase {
 	unsigned int id;
-	char x, y;
+	short x, y;
 	Color color;
 
-	MsgPutObject(unsigned int id, char x, char y, Color color) : MsgBase{ sizeof(MsgPutObject), MsgType::PUT_OBJ }, id{ id }, x{ x }, y{ y }, color{ color } {}
+	MsgPutObject(unsigned int id, short x, short y, Color color) : MsgBase{ sizeof(MsgPutObject), MsgType::PUT_OBJ }, id{ id }, x{ x }, y{ y }, color{ color } {}
 };
 #pragma pack(pop)

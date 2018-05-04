@@ -19,11 +19,11 @@ struct Client {
 	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
 	Color color;
-	char x, y;
+	short x, y;
 	std::unordered_set<unsigned int> viewList;
 
 	Client() : msgRecon{}, color{ 0,0,0 } {}
-	Client(unsigned int id, SOCKET s, Color c, char x, char y) : id{ id }, msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
+	Client(unsigned int id, SOCKET s, Color c, short x, short y) : id{ id }, msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, color{ c }, x{ x }, y{ y } {}
 	Client(Client&& o) : id{ o.id }, msgRecon{ std::move(o.msgRecon) }, s{ o.s }, color{ o.color }, x{ o.x }, y{ o.y }, viewList{ std::move(o.viewList) } {}
 	Client& operator=(Client&& o) {
 		id = o.id;
