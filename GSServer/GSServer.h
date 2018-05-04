@@ -6,7 +6,7 @@ struct Client;
 
 enum class NpcMsgType { NONE, MOVE_RANDOM };
 
-constexpr unsigned int MAX_PLAYER = 5000;
+constexpr unsigned int MAX_NPC = 200000;
 
 struct ServerMsgHandler {
 	Client* client;
@@ -25,7 +25,7 @@ struct Object {
 	std::unordered_set<unsigned int> viewList;
 
 	Object() : color{ 0,0,0 } {}
-	Object(unsigned int id, short x, short y, Color& color) : id{ id }, x{ x }, y{ y }, color{ color } {}
+	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } {}
 };
 
@@ -53,6 +53,8 @@ struct NPCMsg {
 	unsigned int id;
 	NpcMsgType type;
 	long long time;
+
+	NPCMsg(unsigned int id, NpcMsgType type, long long time) : id{ id }, type{ type }, time{ time } {}
 };
 
 template <typename Comp>
@@ -65,8 +67,9 @@ public:
 	const NPCMsg& Top() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.top(); }
 	void Pop() { std::unique_lock<std::mutex> lg{ lock }; msgQueue.pop(); }
 
-	template <typename T>
-	void Push(T&& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(std::forward(msg)); }
+	void Push(NPCMsg&& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(std::move(msg)); }
+	void Push(NPCMsg& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(msg); }
+	bool isEmpty() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.empty(); }
 };
 
 struct ExtOverlapped {

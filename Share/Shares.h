@@ -7,6 +7,7 @@ constexpr u_short GS_PORT = 9011;
 constexpr int BOARD_W = 400, BOARD_H = 400; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
 constexpr int VIEW_SIZE = 20;
 constexpr int PLAYER_VIEW_SIZE = 15;
+constexpr unsigned int MAX_PLAYER = 5000;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
