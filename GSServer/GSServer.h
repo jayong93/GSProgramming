@@ -104,5 +104,6 @@ void WorkerThreadFunc();
 void TimerThreadFunc();
 unsigned int PositionToSectorIndex(unsigned int x, unsigned int y);
 std::vector<Sector*> GetNearSectors(unsigned int sectorIdx);
-std::unordered_set<unsigned int> GetNearList(Object& c);
-void UpdateViewList(Object& c);
+std::unordered_set<unsigned int> GetNearList(unsigned int id);
+void UpdateViewList(unsigned int id);
+bool IsPlayer(unsigned int id) { return id < MAX_PLAYER; }
