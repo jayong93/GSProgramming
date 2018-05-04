@@ -115,22 +115,26 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 			auto& npc = it->second;
 
 			const auto direction = rand() % 4;
+			auto newX = npc.x;
+			auto newY = npc.y;
 			{
 				std::unique_lock<std::shared_timed_mutex> lg{ npc.lock };
 				switch (direction) {
 				case 0: // 왼쪽
-					npc.x -= 1;
+					newX -= 1;
 					break;
 				case 1: // 오른쪽
-					npc.x += 1;
+					newX += 1;
 					break;
 				case 2: // 위
-					npc.y -= 1;
+					newY -= 1;
 					break;
 				case 3: // 아래
-					npc.y += 1;
+					newY += 1;
 					break;
 				}
+				npc.x = max(0, min(newX, BOARD_W - 1));
+				npc.y = max(0, min(newY, BOARD_H - 1));
 			}
 
 			UpdateViewList(npc.id);
