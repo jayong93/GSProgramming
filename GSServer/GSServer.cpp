@@ -5,8 +5,11 @@
 
 unsigned int nextId{ 0 };
 std::unordered_map<unsigned int, std::unique_ptr<Client>> clientMap;
+std::unordered_map<unsigned int, NPC> npcMap;
 std::vector<Sector> sectorList;
-std::shared_timed_mutex clientMapLock, sectorLock;
+std::shared_timed_mutex clientMapLock, sectorLock, npcMapLock;
+auto npcMsgComp = [](const NPCMsg& a, const NPCMsg& b) {return a.time > b.time; };
+NPCMsgQueue<decltype(npcMsgComp)> npcMsgQueue{ npcMsgComp };
 HANDLE iocpObject;
 
 int main() {
@@ -85,6 +88,38 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	delete &eov;
 }
 
+void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
+{
+	switch (ov->msg.type) {
+	case NpcMsgType::MOVE_RANDOM:
+		{
+			std::shared_lock<std::shared_timed_mutex> lg{ npcMapLock };
+			const auto it = npcMap.find(ov->msg.id);
+			if (it != npcMap.end()) break;
+			auto& npc = it->second;
+
+			const auto direction = rand() % 4;
+			switch (direction) {
+			case 0: // 왼쪽
+				npc.x -= 1;
+				break;
+			case 1: // 오른쪽
+				npc.x += 1;
+				break;
+			case 2: // 위
+				npc.y -= 1;
+				break;
+			case 3: // 아래
+				npc.y += 1;
+				break;
+			}
+
+			UpdateViewList(npc);
+		}
+		break;
+	}
+}
+
 void RemoveClient(Client & client)
 {
 	closesocket(client.s);
@@ -143,13 +178,18 @@ void AcceptThreadFunc()
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
-		unsigned int clientId{ nextId++ };
+
+		std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
+		if (clientMap.size() > MAX_PLAYER) {
+			closesocket(clientSock);
+			continue;
+		}
+		unsigned int clientId{ ++nextId };
 		auto newClientPtr = std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen));
 		Client& newClient = *newClientPtr.get();
-		{
-			std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
-			clientMap.emplace(clientId, std::move(newClientPtr));
-		}
+		clientMap.emplace(clientId, std::move(newClientPtr));
+		lg.unlock();
+
 		const auto sectorIdx = PositionToSectorIndex(newClient.x, newClient.y);
 		{
 			std::unique_lock<std::shared_timed_mutex> lg{ sectorLock };
@@ -185,8 +225,30 @@ void WorkerThreadFunc()
 	while (true) {
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
 		if (FALSE == isSuccess) error = GetLastError();
-		if (ov->isRecv) { RecvCompletionCallback(error, bytes, ov); }
+		if (key > MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
+		else if (ov->isRecv) { RecvCompletionCallback(error, bytes, ov); }
 		else { SendCompletionCallback(error, bytes, ov); }
+	}
+}
+
+void TimerThreadFunc()
+{
+	using namespace std::chrono;
+	time_point<high_resolution_clock, milliseconds> startTime, endTime;
+	while (true) {
+		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
+		while (true) {
+			auto& msg = npcMsgQueue.Top();
+			if (msg.time > startTime.time_since_epoch().count()) break;
+
+			auto nmsg = new ExtOverlappedNPC{ msg };
+			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 복사되었으므로 Pop해도 안전
+			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg.id, (LPWSAOVERLAPPED)nmsg);
+		}
+		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
+		auto elapsedTime = (endTime - startTime).count();
+		// 1초마다 타이머 실행
+		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
 	}
 }
 
@@ -218,7 +280,7 @@ std::vector<Sector*> GetNearSectors(unsigned int sectorIdx)
 	return nearSectors;
 }
 
-std::unordered_set<unsigned int> GetNearList(Client & c)
+std::unordered_set<unsigned int> GetNearList(Object& c)
 {
 	std::unordered_set<unsigned int> nearList;
 	{
@@ -239,14 +301,27 @@ std::unordered_set<unsigned int> GetNearList(Client & c)
 	return nearList;
 }
 
-void UpdateViewList(Client & c)
+void UpdateViewList(Object & c)
 {
 	auto nearList = GetNearList(c);
+	const bool amIPlayer = c.id < MAX_PLAYER;
 	for (auto& playerId : nearList) {
-		std::shared_lock<std::shared_timed_mutex> clg{ clientMapLock };
-		auto it = clientMap.find(playerId);
-		if (it == clientMap.end()) continue;
-		auto& player = *it->second.get();
+		std::shared_lock<std::shared_timed_mutex> clg;
+		Object* obj;
+		const bool isPlayer = playerId < MAX_PLAYER;
+		if (isPlayer) {
+			clg = decltype(clg){ clientMapLock };
+			auto it = clientMap.find(playerId);
+			if (it == clientMap.end()) continue;
+			obj = it->second.get();
+		}
+		else {
+			clg = decltype(clg){ npcMapLock };
+			auto it = npcMap.find(playerId);
+			if (it == npcMap.end()) continue;
+			obj = &it->second;
+		}
+		Object& player = *obj;
 		std::lock(c.lock, player.lock);
 		std::unique_lock<std::shared_timed_mutex> myLG{ c.lock, std::adopt_lock };
 		std::unique_lock<std::shared_timed_mutex> playerLG{ player.lock, std::adopt_lock };
@@ -256,35 +331,44 @@ void UpdateViewList(Client & c)
 
 		int retval;
 		if (isInserted) {
-			std::shared_ptr<MsgBase> putPlayerMsg{ new MsgPutObject{ player.id, player.x, player.y, player.color } };
-			auto eov = new ExtOverlapped{ c.s, std::move(putPlayerMsg) };
-			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
-
-			result = player.viewList.insert(c.id);
-			const bool amIInserted = result.second;
-			if (!amIInserted) {
-				std::shared_ptr<MsgBase> moveMeMsg{ new MsgMoveObject{c.id, c.x, c.y} };
-				eov = new ExtOverlapped{ player.s, std::move(moveMeMsg) };
+			if (amIPlayer)
+			{
+				std::shared_ptr<MsgBase> putPlayerMsg{ new MsgPutObject{ player.id, player.x, player.y, player.color } };
+				auto eov = new ExtOverlapped{ ((Client&)c).s, std::move(putPlayerMsg) };
 				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 			}
-			else {
-				std::shared_ptr<MsgBase> putMeMsg{ new MsgPutObject{c.id, c.x, c.y, c.color} };
-				eov = new ExtOverlapped{ player.s, std::move(putMeMsg) };
-				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+
+			result = player.viewList.insert(c.id);
+			if (isPlayer)
+			{
+				const bool amIInserted = result.second;
+				if (!amIInserted) {
+					std::shared_ptr<MsgBase> moveMeMsg{ new MsgMoveObject{c.id, c.x, c.y} };
+					auto eov = new ExtOverlapped{ ((Client&)player).s, std::move(moveMeMsg) };
+					if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
+				else {
+					std::shared_ptr<MsgBase> putMeMsg{ new MsgPutObject{c.id, c.x, c.y, c.color} };
+					auto eov = new ExtOverlapped{ ((Client&)player).s, std::move(putMeMsg) };
+					if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
 			}
 		}
 		else {
 			result = player.viewList.insert(c.id);
-			const bool amIInserted = result.second;
-			if (!amIInserted) {
-				std::shared_ptr<MsgBase> moveMeMsg{ new MsgMoveObject{c.id, c.x, c.y} };
-				auto eov = new ExtOverlapped{ player.s, std::move(moveMeMsg) };
-				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
-			}
-			else {
-				std::shared_ptr<MsgBase> putMeMsg{ new MsgPutObject{c.id, c.x, c.y, c.color} };
-				auto eov = new ExtOverlapped{ player.s, std::move(putMeMsg) };
-				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+			if (isPlayer)
+			{
+				const bool amIInserted = result.second;
+				if (!amIInserted) {
+					std::shared_ptr<MsgBase> moveMeMsg{ new MsgMoveObject{c.id, c.x, c.y} };
+					auto eov = new ExtOverlapped{ ((Client&)player).s, std::move(moveMeMsg) };
+					if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
+				else {
+					std::shared_ptr<MsgBase> putMeMsg{ new MsgPutObject{c.id, c.x, c.y, c.color} };
+					auto eov = new ExtOverlapped{ ((Client&)player).s, std::move(putMeMsg) };
+					if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				}
 			}
 		}
 	}
@@ -302,9 +386,12 @@ void UpdateViewList(Client & c)
 	std::shared_lock<std::shared_timed_mutex> clg{ clientMapLock };
 	for (auto& id : removedList) {
 		int retval;
-		std::shared_ptr<MsgBase> removeMsg{ new MsgRemoveObject{id} };
-		auto eov = new ExtOverlapped{ c.s, std::move(removeMsg) };
-		if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+		if (amIPlayer)
+		{
+			std::shared_ptr<MsgBase> removeMsg{ new MsgRemoveObject{id} };
+			auto eov = new ExtOverlapped{ ((Client&)c).s, std::move(removeMsg) };
+			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+		}
 
 		auto it = clientMap.find(id);
 		if (it == clientMap.end()) continue;
@@ -312,7 +399,7 @@ void UpdateViewList(Client & c)
 		std::unique_lock<std::shared_timed_mutex> plg{ player.lock };
 		retval = player.viewList.erase(c.id);
 		if (1 == retval) {
-			eov = new ExtOverlapped{ player.s, removeMeMsg };
+			auto eov = new ExtOverlapped{ player.s, removeMeMsg };
 			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 		}
 	}
@@ -322,7 +409,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 {
 	if (nullptr == client) return;
 	switch (msg.type) {
-	case MsgType::INPUT_MOVE:
+	case MsgType::CS_INPUT_MOVE:
 		{
 			auto& rMsg = *(const MsgInputMove*)(&msg);
 			auto newClientX = max(0, min(client->x + rMsg.dx, BOARD_W - 1));
