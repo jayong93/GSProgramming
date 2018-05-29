@@ -34,10 +34,10 @@ using NPC = Object;
 struct Client : public Object {
 	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
+	std::wstring gameID;
 
-	Client(){}
-	Client(unsigned int id, SOCKET s, Color c, short x, short y) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, Object{ id, x, y, c } {}
-	Client(Client&& o) : msgRecon{ std::move(o.msgRecon) }, s{ o.s }, Object{ std::move(o) } {}
+	Client(unsigned int id, SOCKET s, Color c, short x, short y, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, Object{ id, x, y, c }, gameID{ gameID } {}
+	Client(Client&& o) : msgRecon{ std::move(o.msgRecon) }, s{ o.s }, gameID{ std::move(o.gameID) }, Object{ std::move(o) } {}
 	Client& operator=(Client&& o) {
 		id = o.id;
 		msgRecon = std::move(o.msgRecon);
@@ -46,6 +46,7 @@ struct Client : public Object {
 		x = o.x;
 		y = o.y;
 		viewList = std::move(o.viewList);
+		gameID = std::move(o.gameID);
 	}
 };
 
@@ -105,6 +106,8 @@ void RemoveClient(Client& client);
 void AcceptThreadFunc();
 void WorkerThreadFunc();
 void TimerThreadFunc();
+void DBThreadFunc();
+void InitDB();
 unsigned int PositionToSectorIndex(unsigned int x, unsigned int y);
 std::vector<Sector*> GetNearSectors(unsigned int sectorIdx);
 std::unordered_set<unsigned int> GetNearList(unsigned int id);

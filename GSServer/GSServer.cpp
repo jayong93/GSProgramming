@@ -12,16 +12,23 @@ std::vector<Sector> sectorList;
 std::shared_timed_mutex clientMapLock, sectorLock, npcMapLock;
 auto npcMsgComp = [](const NPCMsg& a, const NPCMsg& b) {return a.time > b.time; };
 NPCMsgQueue<decltype(npcMsgComp)> npcMsgQueue{ npcMsgComp };
+DBMsgQueue dbMsgQueue;
 HANDLE iocpObject;
+SQLHENV henv;
+SQLHDBC hdbc;
+SQLHSTMT hstmt{ 0 };
 
 std::random_device rd;
 std::mt19937_64 rndGen{ rd() };
 std::uniform_int_distribution<int> posRange{ 0, min(BOARD_W, BOARD_H) - 1 };
 std::uniform_int_distribution<int> colorRange{ 0, 255 };
 
+void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
+
 int main() {
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
+	InitDB();
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
@@ -39,6 +46,7 @@ int main() {
 	std::vector<std::thread> threadList;
 	threadList.emplace_back(AcceptThreadFunc);
 	threadList.emplace_back(TimerThreadFunc);
+	threadList.emplace_back(DBThreadFunc);
 
 	auto threadNum = std::thread::hardware_concurrency();
 	if (0 == threadNum) threadNum = 1;
@@ -110,42 +118,42 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 	auto recvTime = time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count();
 	switch (ov->msg.type) {
 	case NpcMsgType::MOVE_RANDOM:
+	{
+		const auto it = npcMap.find(ov->msg.id);
+		if (it == npcMap.end()) break;
+		auto& npc = it->second;
+
+		const auto direction = rand() % 4;
+		auto newX = npc.x;
+		auto newY = npc.y;
 		{
-			const auto it = npcMap.find(ov->msg.id);
-			if (it == npcMap.end()) break;
-			auto& npc = it->second;
-
-			const auto direction = rand() % 4;
-			auto newX = npc.x;
-			auto newY = npc.y;
-			{
-				std::unique_lock<std::shared_timed_mutex> lg{ npc.lock };
-				switch (direction) {
-				case 0: // 왼쪽
-					newX -= 1;
-					break;
-				case 1: // 오른쪽
-					newX += 1;
-					break;
-				case 2: // 위
-					newY -= 1;
-					break;
-				case 3: // 아래
-					newY += 1;
-					break;
-				}
-				npc.x = max(0, min(newX, BOARD_W - 1));
-				npc.y = max(0, min(newY, BOARD_H - 1));
+			std::unique_lock<std::shared_timed_mutex> lg{ npc.lock };
+			switch (direction) {
+			case 0: // 왼쪽
+				newX -= 1;
+				break;
+			case 1: // 오른쪽
+				newX += 1;
+				break;
+			case 2: // 위
+				newY -= 1;
+				break;
+			case 3: // 아래
+				newY += 1;
+				break;
 			}
-
-			UpdateViewList(npc.id);
-
-			std::shared_lock<std::shared_timed_mutex> lg{ npc.lock };
-			if (npc.viewList.size() > 0) {
-				npcMsgQueue.Push(NPCMsg(npc.id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
-			}
+			npc.x = max(0, min(newX, BOARD_W - 1));
+			npc.y = max(0, min(newY, BOARD_H - 1));
 		}
-		break;
+
+		UpdateViewList(npc.id);
+
+		std::shared_lock<std::shared_timed_mutex> lg{ npc.lock };
+		if (npc.viewList.size() > 0) {
+			npcMsgQueue.Push(NPCMsg(npc.id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
+		}
+	}
+	break;
 	}
 }
 
@@ -179,6 +187,7 @@ void RemoveClient(Client & client)
 			}
 		}
 	}
+	dbMsgQueue.Push(new DBSetUserData{ hstmt, client.gameID, client.x, client.y });
 }
 
 void AcceptThreadFunc()
@@ -203,37 +212,51 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
-		if (clientMap.size() > MAX_PLAYER) {
-			closesocket(clientSock);
-			continue;
-		}
-		unsigned int clientId{ nextId++ };
-		auto newClientPtr = std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), posRange(rndGen), posRange(rndGen));
-		Client& newClient = *newClientPtr.get();
-		clientMap.emplace(clientId, std::move(newClientPtr));
-		lg.unlock();
+		TCHAR name[11];
+		recv(clientSock, (char*)name, sizeof(name), 0);
 
-		const auto sectorIdx = PositionToSectorIndex(newClient.x, newClient.y);
-		{
-			std::unique_lock<std::shared_timed_mutex> lg{ sectorLock };
-			sectorList[sectorIdx].emplace(newClient.id);
-		}
-		CreateIoCompletionPort((HANDLE)clientSock, iocpObject, clientId, 0);
-		printf_s("client(id: %d) has connected\n", clientId);
+		struct ResultUserIn : public DBGetUserData::Result {
+			SOCKET clientSock;
 
-		std::shared_ptr<MsgBase> giveIDMsg{ new MsgGiveID{clientId} };
-		auto eov = new ExtOverlapped{ newClient.s, std::move(giveIDMsg) };
-		if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+			ResultUserIn(SOCKET sock) : clientSock{ sock } {}
+			virtual void doWithResult(SQLWCHAR name[], SQLINTEGER xPos, SQLINTEGER yPos) {
+				int retval{ 0 };
+				std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
+				if (clientMap.size() > MAX_PLAYER) {
+					closesocket(clientSock);
+					return;
+				}
+				unsigned int clientId{ nextId++ };
+				auto newClientPtr = std::make_unique<Client>(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name);
+				Client& newClient = *newClientPtr.get();
+				clientMap.emplace(clientId, std::move(newClientPtr));
+				lg.unlock();
 
-		std::shared_ptr<MsgBase> inMsg{ new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color } };
-		eov = new ExtOverlapped{ newClient.s, std::move(inMsg) };
-		if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+				const auto sectorIdx = PositionToSectorIndex(newClient.x, newClient.y);
+				{
+					std::unique_lock<std::shared_timed_mutex> lg{ sectorLock };
+					sectorList[sectorIdx].emplace(newClient.id);
+				}
+				CreateIoCompletionPort((HANDLE)clientSock, iocpObject, clientId, 0);
+				printf_s("client(id: %d) has connected\n", clientId);
 
-		UpdateViewList(clientId);
+				std::shared_ptr<MsgBase> giveIDMsg{ new MsgGiveID{clientId} };
+				auto eov = new ExtOverlapped{ newClient.s, std::move(giveIDMsg) };
+				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
 
-		eov = new ExtOverlapped(clientSock, newClient);
-		if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
+				std::shared_ptr<MsgBase> inMsg{ new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color } };
+				eov = new ExtOverlapped{ newClient.s, std::move(inMsg) };
+				if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+
+				UpdateViewList(clientId);
+
+				eov = new ExtOverlapped(clientSock, newClient);
+				if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
+			}
+		};
+
+		auto result = std::unique_ptr<DBGetUserData::Result>{ new ResultUserIn{ clientSock } };
+		dbMsgQueue.Push(new DBGetUserData(hstmt, std::wstring{ name }, std::move(result)));
 	}
 
 	shutdown(sock, SD_BOTH);
@@ -273,6 +296,54 @@ void TimerThreadFunc()
 		auto elapsedTime = (endTime - startTime).count();
 		// 1초마다 타이머 실행
 		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
+	}
+}
+
+void DBThreadFunc()
+{
+	while (true) {
+		while (!dbMsgQueue.isEmpty()) {
+			auto& msg = dbMsgQueue.Top();
+			msg->execute();
+			dbMsgQueue.Pop();
+		}
+		Sleep(0);
+	}
+}
+
+void InitDB()
+{
+	SQLRETURN retcode;
+	retcode = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv);
+
+	// Set the ODBC version environment attribute  
+	if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+		retcode = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER*)SQL_OV_ODBC3, 0);
+
+		// Allocate connection handle  
+		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			retcode = SQLAllocHandle(SQL_HANDLE_DBC, henv, &hdbc);
+
+			// Set login timeout to 5 seconds  
+			if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				SQLSetConnectAttr(hdbc, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
+
+				// Connect to data source  
+				retcode = SQLConnect(hdbc, (SQLWCHAR*)L"2018_GAME_SERVER", SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
+
+				// Allocate statement handle  
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
+					if (SQL_SUCCESS != retcode && SQL_SUCCESS_WITH_INFO != retcode) {
+						HandleDiagnosticRecord(hdbc, SQL_HANDLE_DBC, retcode);
+					}
+					return;
+				}
+				HandleDiagnosticRecord(hdbc, SQL_HANDLE_DBC, retcode);
+			}
+			HandleDiagnosticRecord(henv, SQL_HANDLE_ENV, retcode);
+		}
+		HandleDiagnosticRecord(henv, SQL_HANDLE_ENV, retcode);
 	}
 }
 
@@ -474,30 +545,30 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	if (nullptr == client) return;
 	switch (msg.type) {
 	case MsgType::CS_INPUT_MOVE:
+	{
+		auto& rMsg = *(const MsgInputMove*)(&msg);
+		auto newClientX = max(0, min(client->x + rMsg.dx, BOARD_W - 1));
+		auto newClientY = max(0, min(client->y + rMsg.dy, BOARD_H - 1));
+		auto prevSectorIdx = PositionToSectorIndex(client->x, client->y);
+		auto newSectorIdx = PositionToSectorIndex(newClientX, newClientY);
 		{
-			auto& rMsg = *(const MsgInputMove*)(&msg);
-			auto newClientX = max(0, min(client->x + rMsg.dx, BOARD_W - 1));
-			auto newClientY = max(0, min(client->y + rMsg.dy, BOARD_H - 1));
-			auto prevSectorIdx = PositionToSectorIndex(client->x, client->y);
-			auto newSectorIdx = PositionToSectorIndex(newClientX, newClientY);
-			{
-				std::unique_lock<std::shared_timed_mutex> lg{ client->lock };
-				client->x = newClientX;
-				client->y = newClientY;
-			}
-			{
-				std::unique_lock<std::shared_timed_mutex> lg{ sectorLock };
-				sectorList[prevSectorIdx].erase(client->id);
-				sectorList[newSectorIdx].emplace(client->id);
-			}
-
-			int retval;
-			std::shared_ptr<MsgBase> moveMsg{ new MsgMoveObject{ client->id, client->x, client->y } };
-			auto eov = new ExtOverlapped{ client->s, std::move(moveMsg) };
-			if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
-
-			UpdateViewList(client->id);
+			std::unique_lock<std::shared_timed_mutex> lg{ client->lock };
+			client->x = newClientX;
+			client->y = newClientY;
 		}
-		break;
+		{
+			std::unique_lock<std::shared_timed_mutex> lg{ sectorLock };
+			sectorList[prevSectorIdx].erase(client->id);
+			sectorList[newSectorIdx].emplace(client->id);
+		}
+
+		int retval;
+		std::shared_ptr<MsgBase> moveMsg{ new MsgMoveObject{ client->id, client->x, client->y } };
+		auto eov = new ExtOverlapped{ client->s, std::move(moveMsg) };
+		if (0 < (retval = OverlappedSend(*eov))) err_quit_wsa(retval, TEXT("OverlappedSend"));
+
+		UpdateViewList(client->id);
+	}
+	break;
 	}
 }
