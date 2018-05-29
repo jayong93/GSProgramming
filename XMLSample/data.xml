@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Monsters>
+  <Orc>
+    <Message>KA KA KA</Message>
+    <Message>KIKIKI</Message>
+  </Orc>
+  <Troll>
+    <IceTroll name="IceTroll" HP="100" MP="200"/>
+  </Troll>
+  <Wolf name="Wolf" x="32.4" y="102.3"/>
+</Monsters>
