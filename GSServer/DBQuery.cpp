@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "DBQuery.h"
+#include "../Share/Shares.h"
 
 void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode)
 {
@@ -27,27 +28,28 @@ const std::wstring DBSetUserData::queryStr{ L"EXEC dbo.set_user_data " };
 
 bool DBQueryBase::execute()
 {
-	auto retval = SQLExecDirect(this->state, (SQLWCHAR *)L"EXEC dbo.select_high_level 100", SQL_NTS);
+	auto retval = SQLExecDirect(this->state, (SQLWCHAR *)this->query.c_str(), SQL_NTS);
 	if (SQL_SUCCESS != retval && SQL_SUCCESS_WITH_INFO != retval) {
 		HandleDiagnosticRecord(this->state, SQL_HANDLE_STMT, retval);
 		return false;
 	}
 
 	auto isSucess = this->postprocess();
-	if (isSucess) SQLCancel(state);
-	else HandleDiagnosticRecord(this->state, SQL_HANDLE_STMT, retval);
+	if (!isSucess)
+		HandleDiagnosticRecord(this->state, SQL_HANDLE_STMT, retval);
+	SQLCancel(state);
 	return isSucess;
 }
 
 bool DBGetUserData::postprocess()
 {
-	SQLWCHAR name[11]; // ID는 최대 10자
-	SQLINTEGER xPos, yPos;
+	SQLWCHAR name[MAX_GAME_ID_LEN + 1];
+	SQLSMALLINT xPos, yPos;
 	SQLLEN nameLen, xLen, yLen;
 
-	SQLBindCol(state, 1, SQL_C_CHAR, name, sizeof(name) / sizeof(SQLWCHAR), &nameLen);
-	SQLBindCol(state, 2, SQL_INTEGER, &xPos, sizeof(xPos), &xLen);
-	SQLBindCol(state, 3, SQL_INTEGER, &yPos, sizeof(yPos), &yLen);
+	SQLBindCol(state, 1, SQL_WCHAR, name, sizeof(name) / sizeof(*name), &nameLen);
+	SQLBindCol(state, 2, SQL_SMALLINT, &xPos, sizeof(xPos), &xLen);
+	SQLBindCol(state, 3, SQL_SMALLINT, &yPos, sizeof(yPos), &yLen);
 
 	auto retval = SQLFetch(state);
 	if (SQL_SUCCESS != retval && SQL_SUCCESS_WITH_INFO != retval)

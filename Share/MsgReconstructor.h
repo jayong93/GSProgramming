@@ -35,18 +35,17 @@ public:
 		msgHandler = std::move(o.msgHandler);
 	}
 
-	bool Recv(SOCKET s)
+	int Recv(SOCKET s)
 	{
 		int retval = recv(s, (char*)buf.data() + bufSize, bufMaxLen - bufSize, 0);
 		if (SOCKET_ERROR == retval) return WSAGetLastError();
 		bufSize += retval;
-		return this->Reconstruct(s);
+		this->Reconstruct(s);
+		return 0;
 	}
-	bool Reconstruct(SOCKET s)
+	void Reconstruct(SOCKET s)
 	{
-		bool isConstructed{ false };
 		char* curPos = buf.data();
-
 		while (bufSize > 0) {
 			// 미완성 패킷이 있는 경우
 			if (preRemainSize > 0) {
@@ -56,14 +55,13 @@ public:
 					msgHandler(s, *reinterpret_cast<MsgBase*>(backBuf.data()));
 					bufSize -= preRemainSize; curPos += preRemainSize;
 					backBufSize = 0; preRemainSize = 0;
-					isConstructed = true;
 				}
 				// 아직 미완성인 경우
 				else {
 					memcpy_s(backBuf.data() + backBufSize, backBufMaxLen - backBufSize, curPos, bufSize);
 					backBufSize += bufSize; preRemainSize -= bufSize;
 					bufSize = 0;
-					break;
+					return;
 				}
 			}
 			// 패킷사이즈조차 알 수 없을만큼 데이터가 적은 경우
@@ -71,7 +69,7 @@ public:
 				if (curPos != buf.data()) {
 					memcpy_s(buf.data(), bufMaxLen, curPos, bufSize);
 				}
-				break;
+				return;
 			}
 			else {
 				short packetSize = *reinterpret_cast<short*>(curPos);
@@ -85,18 +83,15 @@ public:
 					backBufSize = bufSize;
 					preRemainSize = packetSize - bufSize;
 					bufSize = 0;
-					break;
+					return;
 				}
 				// 정상 패킷 처리
 				else {
 					msgHandler(s, *reinterpret_cast<MsgBase*>(curPos));
 					bufSize -= packetSize; curPos += packetSize;
-					isConstructed = true;
 				}
 			}
 		}
-
-		return isConstructed;
 	}
 	char* GetBuffer() { return reinterpret_cast<char*>(buf.data() + bufSize); }
 	size_t GetSize() const { return bufMaxLen - bufSize; }

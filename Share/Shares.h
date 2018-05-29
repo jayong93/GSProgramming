@@ -8,6 +8,7 @@ constexpr int BOARD_W = 400, BOARD_H = 400; // unsigned로 선언하지 말 것. 플레이
 constexpr int VIEW_SIZE = 21;
 constexpr int PLAYER_VIEW_SIZE = 15;
 constexpr unsigned int MAX_PLAYER = 5000;
+constexpr int MAX_GAME_ID_LEN = 10;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);

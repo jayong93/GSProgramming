@@ -26,6 +26,8 @@ std::uniform_int_distribution<int> colorRange{ 0, 255 };
 void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
 
 int main() {
+	setlocale(LC_ALL, "korean");
+
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
 	InitDB();
@@ -52,6 +54,7 @@ int main() {
 	if (0 == threadNum) threadNum = 1;
 	for (auto i = 0; i < threadNum; ++i) { threadList.emplace_back(WorkerThreadFunc); }
 
+	printf_s("Ready to Run\n");
 	for (auto& t : threadList) { t.join(); }
 
 	WSACleanup();
@@ -212,14 +215,14 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		TCHAR name[11];
+		TCHAR name[MAX_GAME_ID_LEN+1];
 		recv(clientSock, (char*)name, sizeof(name), 0);
 
 		struct ResultUserIn : public DBGetUserData::Result {
 			SOCKET clientSock;
 
 			ResultUserIn(SOCKET sock) : clientSock{ sock } {}
-			virtual void doWithResult(SQLWCHAR name[], SQLINTEGER xPos, SQLINTEGER yPos) {
+			virtual void doWithResult(SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
 				int retval{ 0 };
 				std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
 				if (clientMap.size() > MAX_PLAYER) {

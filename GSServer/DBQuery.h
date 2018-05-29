@@ -16,7 +16,7 @@ class DBGetUserData : public DBQueryBase {
 public:
 	// 유저 데이터를 성공적으로 받았을 때 호출할 callback type
 	struct Result {
-		virtual void doWithResult(SQLWCHAR name[], SQLINTEGER xPos, SQLINTEGER yPos) = 0;
+		virtual void doWithResult(SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) = 0;
 	};
 
 	DBGetUserData(SQLHSTMT hstmt, const std::wstring& gameID, std::unique_ptr<Result>&& result) : DBQueryBase(hstmt, queryStr + gameID), result{ std::move(result) } {};
@@ -41,8 +41,9 @@ private:
 	static std::wstring getQueryStr(const std::wstring& gameID, short x, short y) {
 		auto str = queryStr;
 		str += gameID;
+		str += L", ";
 		str += std::to_wstring(x);
-		str += L" ";
+		str += L", ";
 		str += std::to_wstring(y);
 		return str;
 	}

@@ -19,3 +19,4 @@
 #include <utility>
 #include <string>
 #include <sqlext.h>
+#include <locale.h>
