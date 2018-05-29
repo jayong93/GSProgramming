@@ -8,6 +8,15 @@ void display_error(lua_State* L) {
 	lua_pop(L, 1);
 }
 
+int addnum_c(lua_State* L) {
+	int a = (int)lua_tonumber(L, -2);
+	int b = (int)lua_tonumber(L, -1);
+	lua_pop(L, 3);
+	int result = a + b;
+	lua_pushnumber(L, result);
+	return 1;
+}
+
 int main() {
 	int error{ 0 };
 	lua_State* L = luaL_newstate();	// 风酒 按眉 积己
@@ -31,6 +40,16 @@ int main() {
 
 	int result = (int)lua_tonumber(L, -1);
 	printf("plustwo(100)'s result: %d\n", result);
+
+	lua_register(L, "c_addnum", addnum_c);
+	lua_getglobal(L, "addnum");
+	lua_pushnumber(L, 100);
+	lua_pushnumber(L, 200);
+	lua_pcall(L, 2, 1, 0);
+	result = (int)lua_tonumber(L, -1);
+	lua_pop(L, 1);
+
+	printf("Result of addnum(100, 200): %d\n", result);
 
 	lua_close(L);
 	system("pause");
