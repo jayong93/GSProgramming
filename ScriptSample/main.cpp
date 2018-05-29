@@ -9,7 +9,6 @@ void display_error(lua_State* L) {
 }
 
 int main() {
-	char buf[256];
 	int error{ 0 };
 	lua_State* L = luaL_newstate();	// 루아 객체 생성
 	luaL_openlibs(L);	// 기본 라이브러리 로딩
@@ -25,6 +24,13 @@ int main() {
 	lua_pop(L, 2);
 
 	printf("rows: %d, cols: %d\n", myRow, myColumn);
+
+	lua_getglobal(L, "plustwo");
+	lua_pushnumber(L, 100);
+	lua_pcall(L, 1, 1, 0);
+
+	int result = (int)lua_tonumber(L, -1);
+	printf("plustwo(100)'s result: %d\n", result);
 
 	lua_close(L);
 	system("pause");
