@@ -17,3 +17,5 @@
 #include <chrono>
 #include <queue>
 #include <utility>
+#include <string>
+#include <sqlext.h>

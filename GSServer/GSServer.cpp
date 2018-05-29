@@ -2,6 +2,7 @@
 
 #include "stdafx.h"
 #include "GSServer.h"
+#include "DBQueue.h"
 
 unsigned int nextId{ 0 };
 unsigned int npcNextId{ MAX_PLAYER };
