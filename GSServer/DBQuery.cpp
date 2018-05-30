@@ -23,7 +23,6 @@ void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCod
 	}
 }
 
-const std::wstring DBGetUserData::queryStr{ L"EXEC dbo.get_user_data " };
 const std::wstring DBSetUserData::queryStr{ L"EXEC dbo.set_user_data " };
 
 bool DBQueryBase::execute()
@@ -41,23 +40,3 @@ bool DBQueryBase::execute()
 	return isSucess;
 }
 
-bool DBGetUserData::postprocess()
-{
-	SQLWCHAR name[MAX_GAME_ID_LEN + 1];
-	SQLSMALLINT xPos, yPos;
-	SQLLEN nameLen, xLen, yLen;
-
-	SQLBindCol(state, 1, SQL_WCHAR, name, sizeof(name) / sizeof(*name), &nameLen);
-	SQLBindCol(state, 2, SQL_SMALLINT, &xPos, sizeof(xPos), &xLen);
-	SQLBindCol(state, 3, SQL_SMALLINT, &yPos, sizeof(yPos), &yLen);
-
-	auto retval = SQLFetch(state);
-	if (SQL_SUCCESS != retval && SQL_SUCCESS_WITH_INFO != retval)
-		return false;
-
-	if (result) {
-		result->doWithResult(name, xPos, yPos);
-	}
-
-	return true;
-}

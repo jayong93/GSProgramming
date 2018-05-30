@@ -218,11 +218,7 @@ void AcceptThreadFunc()
 		TCHAR name[MAX_GAME_ID_LEN+1];
 		recv(clientSock, (char*)name, sizeof(name), 0);
 
-		struct ResultUserIn : public DBGetUserData::Result {
-			SOCKET clientSock;
-
-			ResultUserIn(SOCKET sock) : clientSock{ sock } {}
-			virtual void doWithResult(SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
+		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
 				int retval{ 0 };
 				std::unique_lock<std::shared_timed_mutex> lg{ clientMapLock };
 				if (clientMap.size() > MAX_PLAYER) {
@@ -255,11 +251,9 @@ void AcceptThreadFunc()
 
 				eov = new ExtOverlapped(clientSock, newClient);
 				if (0 < (retval = OverlappedRecv(*eov))) err_quit_wsa(retval, TEXT("OverlappedRecv"));
-			}
 		};
 
-		auto result = std::unique_ptr<DBGetUserData::Result>{ new ResultUserIn{ clientSock } };
-		dbMsgQueue.Push(new DBGetUserData(hstmt, std::wstring{ name }, std::move(result)));
+		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
 	}
 
 	shutdown(sock, SD_BOTH);
