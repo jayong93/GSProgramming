@@ -116,7 +116,9 @@ void AcceptThreadFunc()
 			{
 				auto locked = objManager.GetUniqueCollection();
 				auto& clientMap = locked.data;
-				if (clientMap.size() > MAX_PLAYER) {
+
+				// 이미 NPC들이 들어가있는 것을 감안해야 함.
+				if (clientMap.size() - MAX_NPC > MAX_PLAYER) {
 					closesocket(clientSock);
 					return;
 				}
