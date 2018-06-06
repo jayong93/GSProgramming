@@ -16,6 +16,18 @@
     <Filter Include="소스 파일\DB">
       <UniqueIdentifier>{75e685ac-5f2c-464f-9bfe-bf9478cac5cd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="소스 파일\Network">
+      <UniqueIdentifier>{55ffe1cc-311d-44a6-815f-b71cf1fbc8dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\Object">
+      <UniqueIdentifier>{e87b7f25-ab3e-44eb-b9ed-a56e186001d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\World">
+      <UniqueIdentifier>{2feb7c51-327e-4a10-87ce-3d4a05765cfb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\AI">
+      <UniqueIdentifier>{82dcd11a-7330-48f0-a808-c36e94333750}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Share\Shares.h">
@@ -36,8 +48,20 @@
     <ClInclude Include="DBQueue.h">
       <Filter>소스 파일\DB</Filter>
     </ClInclude>
+    <ClInclude Include="NetworkManager.h">
+      <Filter>소스 파일\Network</Filter>
+    </ClInclude>
     <ClInclude Include="ObjectManager.h">
+      <Filter>소스 파일\Object</Filter>
+    </ClInclude>
+    <ClInclude Include="Globals.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="SectorManager.h">
+      <Filter>소스 파일\World</Filter>
+    </ClInclude>
+    <ClInclude Include="AIQueue.h">
+      <Filter>소스 파일\AI</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -53,8 +77,20 @@
     <ClCompile Include="DBQuery.cpp">
       <Filter>소스 파일\DB</Filter>
     </ClCompile>
+    <ClCompile Include="NetworkManager.cpp">
+      <Filter>소스 파일\Network</Filter>
+    </ClCompile>
     <ClCompile Include="ObjectManager.cpp">
+      <Filter>소스 파일\Object</Filter>
+    </ClCompile>
+    <ClCompile Include="Globals.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SectorManager.cpp">
+      <Filter>소스 파일\World</Filter>
+    </ClCompile>
+    <ClCompile Include="AIQueue.cpp">
+      <Filter>소스 파일\AI</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
