@@ -16,7 +16,6 @@ int main() {
 
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
-	InitDB();
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
@@ -34,7 +33,6 @@ int main() {
 	std::vector<std::thread> threadList;
 	threadList.emplace_back(AcceptThreadFunc);
 	threadList.emplace_back(TimerThreadFunc);
-	threadList.emplace_back(DBThreadFunc);
 
 	auto threadNum = std::thread::hardware_concurrency();
 	if (0 == threadNum) threadNum = 1;
@@ -80,7 +78,6 @@ void RemoveClient(Client* client)
 		}
 		networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ client->id });
 	}
-	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
 }
 
 void AcceptThreadFunc()
@@ -108,11 +105,10 @@ void AcceptThreadFunc()
 		TCHAR name[MAX_GAME_ID_LEN + 1];
 		recv(clientSock, (char*)name, sizeof(name), 0);
 
-		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
-			AddNewClient(clientSock, name, xPos, yPos);
-		};
+		auto xPos = posRange(rndGen);
+		auto yPos = posRange(rndGen);
+		AddNewClient(clientSock, name, xPos, yPos);
 
-		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
 	}
 
 	shutdown(sock, SD_BOTH);
@@ -152,54 +148,6 @@ void TimerThreadFunc()
 		auto elapsedTime = (endTime - startTime).count();
 		// 1초마다 타이머 실행
 		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
-	}
-}
-
-void DBThreadFunc()
-{
-	while (true) {
-		while (!dbMsgQueue.isEmpty()) {
-			auto& msg = dbMsgQueue.Top();
-			msg->execute();
-			dbMsgQueue.Pop();
-		}
-		Sleep(0);
-	}
-}
-
-void InitDB()
-{
-	SQLRETURN retcode;
-	retcode = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv);
-
-	// Set the ODBC version environment attribute  
-	if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-		retcode = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER*)SQL_OV_ODBC3, 0);
-
-		// Allocate connection handle  
-		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-			retcode = SQLAllocHandle(SQL_HANDLE_DBC, henv, &hdbc);
-
-			// Set login timeout to 5 seconds  
-			if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				SQLSetConnectAttr(hdbc, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
-
-				// Connect to data source  
-				retcode = SQLConnect(hdbc, (SQLWCHAR*)L"2018_GAME_SERVER", SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
-
-				// Allocate statement handle  
-				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-					retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
-					if (SQL_SUCCESS != retcode && SQL_SUCCESS_WITH_INFO != retcode) {
-						HandleDiagnosticRecord(hdbc, SQL_HANDLE_DBC, retcode);
-					}
-					return;
-				}
-				HandleDiagnosticRecord(hdbc, SQL_HANDLE_DBC, retcode);
-			}
-			HandleDiagnosticRecord(henv, SQL_HANDLE_ENV, retcode);
-		}
-		HandleDiagnosticRecord(henv, SQL_HANDLE_ENV, retcode);
 	}
 }
 
