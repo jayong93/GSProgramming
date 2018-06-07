@@ -6,10 +6,9 @@
 void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
 {
 	auto locked = objManager.GetSharedCollection();
-	auto& objMap = locked.data;
 
-	auto it = objMap.find(id);
-	if (it == objMap.end()) return;
+	auto it = locked->find(id);
+	if (it == locked->end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
 	auto msgPtr = std::shared_ptr<MsgBase>{ &msg };
@@ -126,9 +125,8 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 	case NpcMsgType::MOVE_RANDOM:
 	{
 		auto locked = objManager.GetSharedCollection();
-		auto& npcMap = locked.data;
-		const auto it = npcMap.find(ov->msg.id);
-		if (it == npcMap.end()) break;
+		const auto it = locked->find(ov->msg.id);
+		if (it == locked->end()) break;
 		auto& npc = it->second;
 
 		const auto direction = rand() % 4;
@@ -153,6 +151,7 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 			npc->x = max(0, min(newX, BOARD_W - 1));
 			npc->y = max(0, min(newY, BOARD_H - 1));
 		}
+		locked.unlock();
 
 		npc->UpdateViewList();
 
