@@ -2,7 +2,7 @@
 
 enum class NpcMsgType { NONE, MOVE_RANDOM };
 
-constexpr unsigned int MAX_NPC = 200000;
+constexpr unsigned int MAX_NPC = 2000;
 
 struct NPCMsg {
 	unsigned int id;
