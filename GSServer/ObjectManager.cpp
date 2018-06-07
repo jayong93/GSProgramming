@@ -8,16 +8,15 @@ std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 	std::unordered_set<unsigned int> nearList;
 	{
 		auto locked = this->GetSharedCollection();
-		auto& objMap = locked.data;
-		const Object* obj = locked.data.at(id).get();
+		const Object* obj = locked->at(id).get();
 
 		auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
 		for (auto s : nearSectors) {
 			std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
 				if (id == obj->id) return false;
 
-				auto it = objMap.find(id);
-				if (it == objMap.end()) return false;
+				auto it = locked->find(id);
+				if (it == locked->end()) return false;
 				auto o = it->second.get();
 				std::shared_lock<std::shared_timed_mutex> lg{ o->lock };
 				return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
@@ -33,7 +32,6 @@ void Object::UpdateViewList()
 
 	const bool amIPlayer = objManager.IsPlayer(id);
 	auto locked = objManager.GetSharedCollection();
-	auto& clientMap = locked.data;
 	auto& me = *this;
 
 	for (auto& playerId : nearList) {
@@ -42,8 +40,8 @@ void Object::UpdateViewList()
 		if (!amIPlayer && !isPlayer) continue; // 둘 다 NPC면 viewlist 업데이트 의미 없음.
 
 		std::shared_lock<std::shared_timed_mutex> plg;
-		auto it = clientMap.find(playerId);
-		if (it == clientMap.end()) continue;
+		auto it = locked->find(playerId);
+		if (it == locked->end()) continue;
 		auto& player = *it->second;
 
 		std::lock(me.lock, player.lock);
@@ -110,8 +108,8 @@ void Object::UpdateViewList()
 		}
 
 		const bool isPlayer = objManager.IsPlayer(id);
-		auto it = clientMap.find(id);
-		if (it == clientMap.end()) continue;
+		auto it = locked->find(id);
+		if (it == locked->end()) continue;
 		auto player = it->second.get();
 
 		std::unique_lock<std::shared_timed_mutex> lg{ player->lock };

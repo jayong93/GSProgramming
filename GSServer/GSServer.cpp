@@ -21,12 +21,11 @@ int main() {
 
 	{
 		auto locked = objManager.GetUniqueCollection();
-		auto& npcMap = locked.data;
 		for (auto i = 0; i < MAX_NPC; ++i) {
 			auto id = npcNextId++;
 			auto npc = std::make_unique<Object>(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)));
 			sectorManager.AddToSector(npc->id, npc->x, npc->y);
-			npcMap.emplace(id, std::move(npc));
+			locked->emplace(id, std::move(npc));
 		}
 	}
 
@@ -51,24 +50,22 @@ void RemoveClient(Client* client)
 	std::unique_ptr<Object> localClient;
 	{
 		auto locked = objManager.GetUniqueCollection();
-		auto& clientMap = locked.data;
-		auto it = clientMap.find(client->id);
-		if (it != clientMap.end())
+		auto it = locked->find(client->id);
+		if (it != locked->end())
 		{
 			// 해당 클라이언트에 대한 다른 클라이언트의 접근이 모두 끝난 뒤에 이동
 			std::unique_lock<std::shared_timed_mutex> clg{ client->lock };
 			localClient = std::move(it->second);
 		}
 		else return;
-		clientMap.erase(it);
+		locked->erase(it);
 	}
 	{
 		auto locked = objManager.GetSharedCollection();
-		auto& clientMap = locked.data;
 		std::vector<SOCKET> sendList;
 		for (auto& id : client->viewList) {
-			auto it = clientMap.find(id);
-			if (it == clientMap.end()) continue;
+			auto it = locked->find(id);
+			if (it == locked->end()) continue;
 			auto& player = *reinterpret_cast<Client*>(it->second.get());
 			std::unique_lock<std::shared_timed_mutex> plg{ player.lock };
 			const auto removedCount = player.viewList.erase(client->id);
@@ -165,14 +162,13 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
 	{
 		auto locked = objManager.GetUniqueCollection();
-		auto& clientMap = locked.data;
 
 		// 이미 NPC들이 들어가있는 것을 감안해야 함.
-		if (clientMap.size() - MAX_NPC > MAX_PLAYER) {
+		if (locked->size() - MAX_NPC > MAX_PLAYER) {
 			closesocket(sock);
 			return;
 		}
-		clientMap.emplace(clientId, std::move(newClientPtr));
+		locked->emplace(clientId, std::move(newClientPtr));
 	}
 
 	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
