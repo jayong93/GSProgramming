@@ -109,32 +109,7 @@ void AcceptThreadFunc()
 		recv(clientSock, (char*)name, sizeof(name), 0);
 
 		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
-			int retval{ 0 };
-			unsigned int clientId{ nextId++ };
-			auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, clientSock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
-			Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
-			{
-				auto locked = objManager.GetUniqueCollection();
-				auto& clientMap = locked.data;
-
-				// 이미 NPC들이 들어가있는 것을 감안해야 함.
-				if (clientMap.size() - MAX_NPC > MAX_PLAYER) {
-					closesocket(clientSock);
-					return;
-				}
-				clientMap.emplace(clientId, std::move(newClientPtr));
-			}
-
-			sectorManager.AddToSector(clientId, newClient.x, newClient.y);
-			CreateIoCompletionPort((HANDLE)clientSock, iocpObject, clientId, 0);
-			printf_s("client(id: %d) has connected\n", clientId);
-
-			networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
-			networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
-
-			newClient.UpdateViewList();
-
-			networkManager.RecvNetworkMessage(newClient);
+			AddNewClient(clientSock, name, xPos, yPos);
 		};
 
 		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
@@ -226,5 +201,41 @@ void InitDB()
 		}
 		HandleDiagnosticRecord(henv, SQL_HANDLE_ENV, retcode);
 	}
+}
+
+void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
+{
+	int retval{ 0 };
+	unsigned int clientId{ nextId++ };
+
+	if (clientId >= MAX_PLAYER) {
+		printf_s("too many clients! no more clients can join to the server");
+		return;
+	}
+
+	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
+	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
+	{
+		auto locked = objManager.GetUniqueCollection();
+		auto& clientMap = locked.data;
+
+		// 이미 NPC들이 들어가있는 것을 감안해야 함.
+		if (clientMap.size() - MAX_NPC > MAX_PLAYER) {
+			closesocket(sock);
+			return;
+		}
+		clientMap.emplace(clientId, std::move(newClientPtr));
+	}
+
+	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
+	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
+	printf_s("client(id: %d) has connected\n", clientId);
+
+	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
+	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
+
+	newClient.UpdateViewList();
+
+	networkManager.RecvNetworkMessage(newClient);
 }
 
