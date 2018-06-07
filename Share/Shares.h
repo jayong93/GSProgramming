@@ -12,6 +12,7 @@ constexpr int MAX_GAME_ID_LEN = 10;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
+void print_network_error(DWORD errCode);
 
 #pragma pack(push, 1)
 struct Color {
