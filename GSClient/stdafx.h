@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Windows.h>
 #include <WS2tcpip.h>
 #include <WinSock2.h>
+#include <Windows.h>
 #include <CommCtrl.h>
 #include <string>
 #include <mutex>

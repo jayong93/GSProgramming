@@ -6,7 +6,7 @@
 
 void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
 {
-	auto locked = global.objManager.GetSharedCollection();
+	auto locked = global.objManager.GetUniqueCollection();
 	auto& objMap = locked.data;
 
 	auto it = objMap.find(id);
