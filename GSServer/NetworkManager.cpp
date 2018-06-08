@@ -12,25 +12,14 @@ void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
 	if (it == objMap.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
-	auto msgPtr = std::shared_ptr<MsgBase>{ &msg };
-	auto eov = new ExtOverlapped{ client.s, std::move(msgPtr) };
+	auto eov = new ExtOverlapped{ client.s, msg };
 	this->Send(*eov);
 }
 
 void NetworkManager::SendNetworkMessage(SOCKET sock, MsgBase & msg)
 {
-	auto msgPtr = std::shared_ptr<MsgBase>{ &msg };
-	auto eov = new ExtOverlapped{ sock, std::move(msgPtr) };
+	auto eov = new ExtOverlapped{ sock, msg };
 	this->Send(*eov);
-}
-
-void NetworkManager::SendNetworkMessage(std::vector<SOCKET>& sockList, MsgBase & msg)
-{
-	for (auto sock : sockList) {
-		auto msgPtr = std::shared_ptr<MsgBase>{ &msg };
-		auto eov = new ExtOverlapped{ sock, msgPtr };
-		this->Send(*eov);
-	}
 }
 
 void NetworkManager::RecvNetworkMessage(Client& c)
@@ -87,6 +76,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
 		client->UpdateViewList();
+		printf_s("client #%d has moved", client->id);
 	}
 	break;
 	}

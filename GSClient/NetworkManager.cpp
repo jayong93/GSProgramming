@@ -50,7 +50,7 @@ void NetworkManager::Send(ExtOverlapped & eov)
 	const int retval = WSASend(eov.s, &wb, 1, nullptr, 0, (LPWSAOVERLAPPED)&eov, nullptr);
 	int error;
 	if (0 == retval || WSA_IO_PENDING == (error = WSAGetLastError())) return;
-	if (error > 0) print_network_error(error);
+	if (error > 0) err_quit_wsa(error, TEXT("Send"));
 }
 
 void NetworkManager::Recv(ExtOverlapped & eov)
@@ -64,7 +64,7 @@ void NetworkManager::Recv(ExtOverlapped & eov)
 	const int retval = WSARecv(eov.s, &wb, 1, nullptr, &flags, (LPWSAOVERLAPPED)&eov, nullptr);
 	int error;
 	if (0 == retval || WSA_IO_PENDING == (error = WSAGetLastError())) return;
-	if (error > 0) print_network_error(error);
+	if (error > 0) err_quit_wsa(error, TEXT("Recv"));
 }
 
 void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)

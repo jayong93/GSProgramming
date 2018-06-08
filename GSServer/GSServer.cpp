@@ -65,7 +65,6 @@ void RemoveClient(Client* client)
 	{
 		auto locked = objManager.GetSharedCollection();
 		auto& clientMap = locked.data;
-		std::vector<SOCKET> sendList;
 		for (auto& id : client->viewList) {
 			auto it = clientMap.find(id);
 			if (it == clientMap.end()) continue;
@@ -73,10 +72,9 @@ void RemoveClient(Client* client)
 			std::unique_lock<std::shared_timed_mutex> plg{ player.lock };
 			const auto removedCount = player.viewList.erase(client->id);
 			if (removedCount == 1) {
-				sendList.emplace_back(player.s);
+				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });
 			}
 		}
-		networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ client->id });
 	}
 }
 
