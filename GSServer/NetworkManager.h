@@ -50,4 +50,3 @@ struct ServerMsgHandler {
 
 void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
 void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
-void NPCMsgCallback(DWORD error, ExtOverlappedNPC*& ov);

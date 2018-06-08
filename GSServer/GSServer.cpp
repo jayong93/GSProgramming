@@ -78,6 +78,7 @@ void RemoveClient(Client* client)
 		networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ client->id });
 	}
 	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
+	printf_s("client #%d has disconnected", localClient->id);
 }
 
 void AcceptThreadFunc()

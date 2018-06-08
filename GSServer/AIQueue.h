@@ -30,3 +30,7 @@ public:
 	void Push(NPCMsg& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(msg); }
 	bool isEmpty() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.empty(); }
 };
+
+
+struct ExtOverlappedNPC;
+void NPCMsgCallback(DWORD error, ExtOverlappedNPC*& ov);
