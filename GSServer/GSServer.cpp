@@ -102,12 +102,9 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		TCHAR name[MAX_GAME_ID_LEN + 1];
-		recv(clientSock, (char*)name, sizeof(name), 0);
-
 		auto xPos = posRange(rndGen);
 		auto yPos = posRange(rndGen);
-		AddNewClient(clientSock, name, xPos, yPos);
+		AddNewClient(clientSock, L"", xPos, yPos);
 
 	}
 
