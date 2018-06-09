@@ -43,8 +43,11 @@ struct ShareLocked {
 public:
 	ShareLocked(std::shared_timed_mutex& lock, const ObjectMap& data) : lg{ lock }, data{ data } {}
 	ShareLocked(ShareLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	const ObjectMap& data;
+	const ObjectMap* operator->() const { return &data; }
+	void unlock() { lg.unlock(); }
+
 private:
+	const ObjectMap& data;
 	std::shared_lock<std::shared_timed_mutex> lg;
 };
 
@@ -52,8 +55,11 @@ struct UniqueLocked {
 public:
 	UniqueLocked(std::shared_timed_mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
 	UniqueLocked(UniqueLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	ObjectMap& data;
+	ObjectMap* operator->() { return &data; }
+	void unlock() { lg.unlock(); }
+
 private:
+	ObjectMap & data;
 	std::unique_lock<std::shared_timed_mutex> lg;
 };
 
