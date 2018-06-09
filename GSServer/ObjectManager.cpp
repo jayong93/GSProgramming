@@ -39,19 +39,18 @@ void Object::UpdateViewList()
 
 		if (!amIPlayer && !isPlayer) continue; // 둘 다 NPC면 viewlist 업데이트 의미 없음.
 
-		std::shared_lock<std::shared_timed_mutex> plg;
 		auto it = locked->find(playerId);
 		if (it == locked->end()) continue;
 		auto& player = *it->second;
 
-		std::lock(me.lock, player.lock);
-		std::unique_lock<std::shared_timed_mutex> myLG{ me.lock, std::adopt_lock };
-		std::unique_lock<std::shared_timed_mutex> playerLG{ player.lock, std::adopt_lock };
+		bool isInserted{ false };
+		{
+			std::unique_lock<std::shared_timed_mutex> myLG{ me.lock };
+			auto result = me.viewList.insert(playerId);
+			isInserted = result.second;
+		}
 
-		auto result = me.viewList.insert(playerId);
-		myLG.unlock();
-		const bool isInserted = result.second;
-
+		std::unique_lock<std::shared_timed_mutex> playerLG{ player.lock };
 		int retval;
 		if (isInserted) {
 			if (amIPlayer)
@@ -59,7 +58,7 @@ void Object::UpdateViewList()
 				networkManager.SendNetworkMessage(((Client&)me).s, *new MsgPutObject{ player.id, player.x, player.y, player.color });
 			}
 
-			result = player.viewList.insert(me.id);
+			auto result = player.viewList.insert(me.id);
 			const bool amIInserted = result.second;
 			if (isPlayer)
 			{
@@ -76,7 +75,7 @@ void Object::UpdateViewList()
 			}
 		}
 		else {
-			result = player.viewList.insert(me.id);
+			auto result = player.viewList.insert(me.id);
 			if (isPlayer)
 			{
 				const bool amIInserted = result.second;
@@ -99,7 +98,6 @@ void Object::UpdateViewList()
 		for (auto id : removedList) me.viewList.erase(id);
 	}
 
-	std::vector<SOCKET> sendList;
 	for (auto& id : removedList) {
 		int retval;
 		if (amIPlayer)
@@ -115,8 +113,7 @@ void Object::UpdateViewList()
 		std::unique_lock<std::shared_timed_mutex> lg{ player->lock };
 		retval = player->viewList.erase(me.id);
 		if (isPlayer && 1 == retval) {
-			sendList.push_back(((Client*)player)->s);
+			networkManager.SendNetworkMessage(((Client*)player)->s, *new MsgRemoveObject{ me.id });
 		}
 	}
-	networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ me.id });
 }
