@@ -11,6 +11,7 @@ struct Global {
 	bool clientsInitialized = false;
 	unsigned int clientId = 0;
 	unsigned int connectedClientsNum = 0;
+	ConnectionType connectType{ ConnectionType::NORMAL };
 };
 
 #ifndef SET_GLOBALS

@@ -71,12 +71,29 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 			client->y = newClientY;
 		}
 
-		sectorManager.UpdateSector(client->id, oldX, oldY, newClientX, newClientY);
+		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
 		client->UpdateViewList();
 	}
 	break;
+	case MsgType::CS_TELEPORT:
+	{
+		auto& rMsg = *(const MsgTeleport*)&msg;
+		auto oldX = client->x;
+		auto oldY = client->y;
+		{
+			std::unique_lock<std::shared_timed_mutex> lg{ client->lock };
+			client->x = rMsg.x;
+			client->y = rMsg.y;
+		}
+
+		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
+		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
+
+		client->UpdateViewList();
+	}
+		break;
 	}
 }
 

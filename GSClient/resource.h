@@ -6,6 +6,9 @@
 #define IDC_IPADDRESS1                  1001
 #define IDC_ID                          1002
 #define IDC_EDIT_ID                     1002
+#define IDC_NORMAL_BTN                  1005
+#define IDC_BTN_NORMAL                  1005
+#define IDC_BTN_HOTSPOT                 1006
 
 // Next default values for new objects
 // 
@@ -13,7 +16,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        103
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1003
+#define _APS_NEXT_CONTROL_VALUE         1006
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -1,7 +1,8 @@
 #pragma once
 #include "MsgReconstructor.h"
 
-enum class MsgType { NONE, CS_INPUT_MOVE, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ};
+enum class MsgType { NONE, CS_INPUT_MOVE, CS_TELEPORT, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ};
+enum class ConnectionType {NORMAL, HOTSPOT};
 
 constexpr u_short GS_PORT = 9011;
 constexpr int BOARD_W = 400, BOARD_H = 400; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
@@ -58,5 +59,11 @@ struct MsgPutObject : public MsgBase {
 	Color color;
 
 	MsgPutObject(unsigned int id, short x, short y, Color color) : MsgBase{ sizeof(MsgPutObject), MsgType::SC_PUT_OBJ }, id{ id }, x{ x }, y{ y }, color{ color } {}
+};
+
+struct MsgTeleport : public MsgBase {
+	short x, y;
+
+	MsgTeleport(short x, short y) : MsgBase{ sizeof(MsgTeleport), MsgType::CS_TELEPORT }, x{ x }, y{ y } {}
 };
 #pragma pack(pop)
