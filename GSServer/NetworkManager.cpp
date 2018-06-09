@@ -76,7 +76,6 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
 		client->UpdateViewList();
-		printf_s("client #%d has moved\n", client->id);
 	}
 	break;
 	}
