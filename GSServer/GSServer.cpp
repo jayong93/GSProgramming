@@ -76,6 +76,7 @@ void RemoveClient(Client* client)
 			}
 		}
 	}
+	printf_s("client #%d has disconnected\n", client->id);
 }
 
 void AcceptThreadFunc()
@@ -172,7 +173,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 
 	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
-	printf_s("client(id: %d) has connected\n", clientId);
+	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });

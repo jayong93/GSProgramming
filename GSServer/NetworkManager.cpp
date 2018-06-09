@@ -87,6 +87,7 @@ void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
 	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
+		if (0 != error) print_network_error(error);
 		RemoveClient(eov.client);
 		return;
 	}
@@ -97,6 +98,7 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
 	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
+		if (0 != error) print_network_error(error);
 		RemoveClient(eov.client);
 		return;
 	}
