@@ -5,8 +5,10 @@
 struct Object {
 	unsigned int id = 0;
 	short x = 0, y = 0;
+	COLORREF color = RGB(255, 255, 255);
 
 	Object() {}
+	Object(int x, int y, const Color& color) : x( x ), y( y ), color{ RGB(color.r, color.g, color.b) } {}
 	Object(Object&& o) : id{ o.id } {}
 };
 
@@ -31,8 +33,11 @@ struct UniqueLocked {
 public:
 	UniqueLocked(std::mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
 	UniqueLocked(UniqueLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	ObjectMap& data;
+
+	ObjectMap* operator->() { return &data; }
+	ObjectMap& operator*() { return data; }
 private:
+	ObjectMap& data;
 	std::unique_lock<std::mutex> lg;
 };
 

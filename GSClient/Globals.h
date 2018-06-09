@@ -8,10 +8,7 @@ struct Global {
 	NetworkManager networkManager;
 	HANDLE iocpObject;
 	HWND mainWin;
-	bool clientsInitialized = false;
-	unsigned int clientId = 0;
-	unsigned int connectedClientsNum = 0;
-	ConnectionType connectType{ ConnectionType::NORMAL };
+	Client* myInstance = nullptr;
 };
 
 #ifndef SET_GLOBALS
