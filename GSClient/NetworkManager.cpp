@@ -70,7 +70,7 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
 	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
-		RemoveClient(*eov.client);
+		err_quit_wsa(error, TEXT("OverlappedRecv"));
 		return;
 	}
 
