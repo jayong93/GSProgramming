@@ -71,7 +71,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 			client->y = newClientY;
 		}
 
-		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
+		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
 		client->UpdateViewList();

@@ -48,9 +48,8 @@ bool SectorManager::UpdateSector(unsigned int id, unsigned int oldX, unsigned in
 	auto& newSector = sectorList[newIdx];
 
 	auto it = oldSector.find(id);
-	if (it == oldSector.end()) return false;
-	
-	oldSector.erase(it);
+	if (it != oldSector.end())
+		oldSector.erase(it);
 	newSector.emplace(id);
 
 	return true;
@@ -63,7 +62,7 @@ bool SectorManager::AddToSector(unsigned int id, unsigned int x, unsigned int y)
 	if (idx < 0 || idx >= sectorList.size()) return false;
 
 	auto& sector = sectorList[idx];
-	
+
 	auto it = sector.find(id);
 	if (it != sector.end()) return false;
 
