@@ -116,8 +116,8 @@ void WorkerThreadFunc()
 	DWORD bytes;
 	ULONG_PTR key;
 	ExtOverlapped* ov;
-	DWORD error{ 0 };
 	while (true) {
+		DWORD error{ 0 };
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
 		if (FALSE == isSuccess) error = GetLastError();
 		if (key >= MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
