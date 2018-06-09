@@ -15,7 +15,7 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 	switch (ov->msg.type) {
 	case NpcMsgType::MOVE_RANDOM:
 	{
-		auto locked = objManager.GetSharedCollection();
+		auto locked = objManager.GetUniqueCollection();
 		const auto it = locked->find(ov->msg.id);
 		if (it == locked->end()) break;
 		auto& npc = it->second;
@@ -24,7 +24,7 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 		auto newX = npc->x;
 		auto newY = npc->y;
 		{
-			std::unique_lock<std::shared_timed_mutex> lg{ npc->lock };
+			std::unique_lock<std::mutex> lg{ npc->lock };
 			switch (direction) {
 			case 0: // ¿ÞÂÊ
 				newX -= 1;
@@ -46,7 +46,7 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 
 		npc->UpdateViewList();
 
-		std::shared_lock<std::shared_timed_mutex> lg{ npc->lock };
+		std::unique_lock<std::mutex> lg{ npc->lock };
 		if (npc->viewList.size() > 0) {
 			npcMsgQueue.Push(NPCMsg(npc->id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
 		}

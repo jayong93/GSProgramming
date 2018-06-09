@@ -54,19 +54,19 @@ void RemoveClient(Client* client)
 		if (it != locked->end())
 		{
 			// 해당 클라이언트에 대한 다른 클라이언트의 접근이 모두 끝난 뒤에 이동
-			std::unique_lock<std::shared_timed_mutex> clg{ client->lock };
+			std::unique_lock<std::mutex> clg{ client->lock };
 			localClient = std::move(it->second);
 		}
 		else return;
 		locked->erase(it);
 	}
 	{
-		auto locked = objManager.GetSharedCollection();
+		auto locked = objManager.GetUniqueCollection();
 		for (auto& id : client->viewList) {
 			auto it = locked->find(id);
 			if (it == locked->end()) continue;
 			auto& player = *reinterpret_cast<Client*>(it->second.get());
-			std::unique_lock<std::shared_timed_mutex> plg{ player.lock };
+			std::unique_lock<std::mutex> plg{ player.lock };
 			const auto removedCount = player.viewList.erase(client->id);
 			if (removedCount == 1) {
 				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });

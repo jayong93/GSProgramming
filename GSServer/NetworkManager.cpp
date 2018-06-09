@@ -5,7 +5,7 @@
 
 void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
 {
-	auto locked = objManager.GetSharedCollection();
+	auto locked = objManager.GetUniqueCollection();
 
 	auto it = locked->find(id);
 	if (it == locked->end()) return;
@@ -66,7 +66,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		auto oldX = client->x;
 		auto oldY = client->y;
 		{
-			std::unique_lock<std::shared_timed_mutex> lg{ client->lock };
+			std::unique_lock<std::mutex> lg{ client->lock };
 			client->x = newClientX;
 			client->y = newClientY;
 		}
@@ -83,7 +83,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		auto oldX = client->x;
 		auto oldY = client->y;
 		{
-			std::unique_lock<std::shared_timed_mutex> lg{ client->lock };
+			std::unique_lock<std::mutex> lg{ client->lock };
 			client->x = rMsg.x;
 			client->y = rMsg.y;
 		}

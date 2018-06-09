@@ -27,7 +27,7 @@ std::vector<Sector> SectorManager::GetNearSectors(unsigned int sectorIdx)
 	const auto sectorMinY = max(sectorY - 1, 0);
 	const auto sectorMaxY = min(sectorY + 1, vertSectorNum - 1);
 
-	std::shared_lock<std::shared_timed_mutex> lg{ this->lock };
+	std::unique_lock<std::mutex> lg{ this->lock };
 	for (auto i = sectorMinY; i <= sectorMaxY; ++i) {
 		for (auto j = sectorMinX; j <= sectorMaxX; ++j) {
 			nearSectors.emplace_back(sectorList[i*horiSectorNum + j]);
