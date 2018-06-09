@@ -46,7 +46,6 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 
 		npc->UpdateViewList();
 
-		auto nearSector = sectorManager.GetNearSectors()
 		std::shared_lock<std::shared_timed_mutex> lg{ npc->lock };
 		if (npc->viewList.size() > 0) {
 			npcMsgQueue.Push(NPCMsg(npc->id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));

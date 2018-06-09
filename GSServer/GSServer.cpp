@@ -78,7 +78,7 @@ void RemoveClient(Client* client)
 		networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ client->id });
 	}
 	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
-	printf_s("client #%d has disconnected", localClient->id);
+	printf_s("client #%d has disconnected\n", localClient->id);
 }
 
 void AcceptThreadFunc()
@@ -207,7 +207,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	unsigned int clientId{ nextId++ };
 
 	if (clientId >= MAX_PLAYER) {
-		printf_s("too many clients! no more clients can join to the server");
+		printf_s("too many clients! no more clients can join to the server\n");
 		return;
 	}
 
