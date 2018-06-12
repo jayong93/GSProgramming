@@ -20,3 +20,4 @@
 #include <string>
 #include <sqlext.h>
 #include <locale.h>
+#include <lua.hpp>

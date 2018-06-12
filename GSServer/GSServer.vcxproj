@@ -22,10 +22,12 @@
     <ClInclude Include="..\Share\MsgReconstructor.h" />
     <ClInclude Include="..\Share\Shares.h" />
     <ClInclude Include="AIQueue.h" />
+    <ClInclude Include="CFunctionsForLua.h" />
     <ClInclude Include="DBQuery.h" />
     <ClInclude Include="DBQueue.h" />
     <ClInclude Include="Globals.h" />
     <ClInclude Include="GSServer.h" />
+    <ClInclude Include="LuaFunctionCall.h" />
     <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="SectorManager.h" />
@@ -34,9 +36,11 @@
   <ItemGroup>
     <ClCompile Include="..\Share\Shares.cpp" />
     <ClCompile Include="AIQueue.cpp" />
+    <ClCompile Include="CFunctionsForLua.cpp" />
     <ClCompile Include="DBQuery.cpp" />
     <ClCompile Include="Globals.cpp" />
     <ClCompile Include="GSServer.cpp" />
+    <ClCompile Include="LuaFunctionCall.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="SectorManager.cpp" />
@@ -101,7 +105,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -113,7 +117,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\include;$(ProjectDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

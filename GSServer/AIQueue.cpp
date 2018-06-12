@@ -48,7 +48,7 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 
 		std::unique_lock<std::mutex> lg{ npc->lock };
 		if (npc->viewList.size() > 0) {
-			npcMsgQueue.Push(NPCMsg(npc->id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
+			npcMsgQueue.Push(*new NPCMsg(npc->id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
 		}
 	}
 	break;

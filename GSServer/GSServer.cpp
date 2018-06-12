@@ -23,7 +23,7 @@ int main() {
 		auto locked = objManager.GetUniqueCollection();
 		for (auto i = 0; i < MAX_NPC; ++i) {
 			auto id = npcNextId++;
-			auto npc = std::make_unique<Object>(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)));
+			auto npc = std::unique_ptr<Object>{new AI_NPC{id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), "script/hello.lua"}};
 			sectorManager.AddToSector(npc->id, npc->x, npc->y);
 			locked->emplace(id, std::move(npc));
 		}
