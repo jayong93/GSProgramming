@@ -1,8 +1,7 @@
 #pragma once
 #include "../Share/Shares.h"
-#include "AIQueue.h"
 
-class Client;
+struct Client;
 
 struct ExtOverlapped {
 	WSAOVERLAPPED ov;
@@ -19,15 +18,6 @@ struct ExtOverlapped {
 	ExtOverlapped& operator=(const ExtOverlapped&) = delete;
 };
 
-struct ExtOverlappedNPC {
-	WSAOVERLAPPED ov;
-	NPCMsg msg;
-
-	ExtOverlappedNPC(const NPCMsg& msg) : msg{ msg } { ZeroMemory(&ov, sizeof(ov)); }
-	ExtOverlappedNPC(const ExtOverlappedNPC&) = delete;
-	ExtOverlappedNPC& operator=(const ExtOverlappedNPC&) = delete;
-};
-
 class NetworkManager {
 public:
 	void SendNetworkMessage(int id, MsgBase& msg);
@@ -36,15 +26,6 @@ public:
 private:
 	void Send(ExtOverlapped& eov);
 	void Recv(ExtOverlapped& eov);
-};
-
-struct ServerMsgHandler {
-	Client* client;
-
-	ServerMsgHandler() : client{ nullptr } {}
-	ServerMsgHandler(Client& c) : client{ &c } {}
-	void operator()(SOCKET s, const MsgBase& msg);
-	~ServerMsgHandler() {}
 };
 
 void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);

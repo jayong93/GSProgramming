@@ -12,5 +12,5 @@ public:
 
 private:
 	std::vector<Sector> sectorList;
-	std::shared_timed_mutex lock;
+	std::mutex lock;
 };

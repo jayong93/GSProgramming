@@ -7,7 +7,7 @@ std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 {
 	std::unordered_set<unsigned int> nearList;
 	{
-		auto locked = this->GetSharedCollection();
+		auto locked = this->GetUniqueCollection();
 		const Object* obj = locked->at(id).get();
 
 		auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
@@ -18,7 +18,7 @@ std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 				auto it = locked->find(id);
 				if (it == locked->end()) return false;
 				auto o = it->second.get();
-				std::shared_lock<std::shared_timed_mutex> lg{ o->lock };
+				std::unique_lock<std::mutex> lg{ o->lock };
 				return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
 			});
 		}
@@ -31,7 +31,7 @@ void Object::UpdateViewList()
 	auto nearList = objManager.GetNearList(id);
 
 	const bool amIPlayer = objManager.IsPlayer(id);
-	auto locked = objManager.GetSharedCollection();
+	auto locked = objManager.GetUniqueCollection();
 	auto& me = *this;
 
 	for (auto& playerId : nearList) {
@@ -45,12 +45,12 @@ void Object::UpdateViewList()
 
 		bool isInserted{ false };
 		{
-			std::unique_lock<std::shared_timed_mutex> myLG{ me.lock };
+			std::unique_lock<std::mutex> myLG{ me.lock };
 			auto result = me.viewList.insert(playerId);
 			isInserted = result.second;
 		}
 
-		std::unique_lock<std::shared_timed_mutex> playerLG{ player.lock };
+		std::unique_lock<std::mutex> playerLG{ player.lock };
 		int retval;
 		if (isInserted) {
 			if (amIPlayer)
@@ -91,7 +91,7 @@ void Object::UpdateViewList()
 
 	std::vector<unsigned int> removedList;
 	{
-		std::unique_lock<std::shared_timed_mutex> lg{ me.lock };
+		std::unique_lock<std::mutex> lg{ me.lock };
 		std::copy_if(me.viewList.begin(), me.viewList.end(), std::back_inserter(removedList), [&](auto id) {
 			return nearList.find(id) == nearList.end();
 		});
@@ -110,7 +110,7 @@ void Object::UpdateViewList()
 		if (it == locked->end()) continue;
 		auto player = it->second.get();
 
-		std::unique_lock<std::shared_timed_mutex> lg{ player->lock };
+		std::unique_lock<std::mutex> lg{ player->lock };
 		retval = player->viewList.erase(me.id);
 		if (isPlayer && 1 == retval) {
 			networkManager.SendNetworkMessage(((Client*)player)->s, *new MsgRemoveObject{ me.id });

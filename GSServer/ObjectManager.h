@@ -3,7 +3,7 @@
 #include "NetworkManager.h"
 
 struct Object {
-	std::shared_timed_mutex lock;
+	std::mutex lock;
 	unsigned int id = 0;
 	short x = 0, y = 0;
 	Color color;
@@ -39,37 +39,24 @@ struct Client : public Object {
 
 using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
 
-struct ShareLocked {
-public:
-	ShareLocked(std::shared_timed_mutex& lock, const ObjectMap& data) : lg{ lock }, data{ data } {}
-	ShareLocked(ShareLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	const ObjectMap* operator->() const { return &data; }
-	void unlock() { lg.unlock(); }
-
-private:
-	const ObjectMap& data;
-	std::shared_lock<std::shared_timed_mutex> lg;
-};
-
 struct UniqueLocked {
 public:
-	UniqueLocked(std::shared_timed_mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
+	UniqueLocked(std::mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
 	UniqueLocked(UniqueLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
 	ObjectMap* operator->() { return &data; }
 	void unlock() { lg.unlock(); }
 
 private:
 	ObjectMap & data;
-	std::unique_lock<std::shared_timed_mutex> lg;
+	std::unique_lock<std::mutex> lg;
 };
 
 class ObjectManager {
 public:
-	ShareLocked GetSharedCollection() { return ShareLocked{ lock, data }; }
 	UniqueLocked GetUniqueCollection() { return UniqueLocked{ lock, data }; }
 	std::unordered_set<unsigned int> GetNearList(unsigned int id);
 	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
 private:
-	std::shared_timed_mutex lock;
+	std::mutex lock;
 	ObjectMap data;
 };
