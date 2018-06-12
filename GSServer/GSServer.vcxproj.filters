@@ -63,6 +63,12 @@
     <ClInclude Include="AIQueue.h">
       <Filter>소스 파일\AI</Filter>
     </ClInclude>
+    <ClInclude Include="LuaFunctionCall.h">
+      <Filter>소스 파일\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="CFunctionsForLua.h">
+      <Filter>소스 파일\AI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GSServer.cpp">
@@ -90,6 +96,12 @@
       <Filter>소스 파일\World</Filter>
     </ClCompile>
     <ClCompile Include="AIQueue.cpp">
+      <Filter>소스 파일\AI</Filter>
+    </ClCompile>
+    <ClCompile Include="LuaFunctionCall.cpp">
+      <Filter>소스 파일\AI</Filter>
+    </ClCompile>
+    <ClCompile Include="CFunctionsForLua.cpp">
       <Filter>소스 파일\AI</Filter>
     </ClCompile>
   </ItemGroup>

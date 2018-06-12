@@ -2,6 +2,8 @@
 #include "GSServer.h"
 #include "ObjectManager.h"
 #include "Globals.h"
+#include "LuaFunctionCall.h"
+#include "CFunctionsForLua.h"
 
 std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 {
@@ -69,10 +71,6 @@ void Object::UpdateViewList()
 					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgPutObject{ me.id, me.x, me.y, me.color });
 				}
 			}
-			// NPC라면 플레이어가 근처에 왔을 때 이동 타이머 시작
-			else {
-				npcMsgQueue.Push(NPCMsg(playerId, NpcMsgType::MOVE_RANDOM, 0)); // 바로 NPC 이동 시작
-			}
 		}
 		else {
 			auto result = player.viewList.insert(me.id);
@@ -116,4 +114,18 @@ void Object::UpdateViewList()
 			networkManager.SendNetworkMessage(((Client*)player)->s, *new MsgRemoveObject{ me.id });
 		}
 	}
+}
+
+lua_State * AI_NPC::InitLuaState(unsigned int id, const char* scriptName) noexcept
+{
+	auto state = luaL_newstate();
+	luaL_openlibs(state);
+	luaL_loadfile(state, scriptName);
+	if (lua_pcall(state, 0, 0, 0) != 0) {
+		display_error(state);
+		return state;
+	}
+	RegisterCFunctions(state);
+	LFCSetMyId{ id }(state);
+	return state;
 }

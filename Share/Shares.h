@@ -1,7 +1,7 @@
 #pragma once
 #include "MsgReconstructor.h"
 
-enum class MsgType { NONE, CS_INPUT_MOVE, CS_TELEPORT, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ};
+enum class MsgType { NONE, CS_INPUT_MOVE, CS_TELEPORT, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT};
 enum class ConnectionType {NORMAL, HOTSPOT};
 
 constexpr u_short GS_PORT = 9011;
@@ -10,6 +10,7 @@ constexpr int VIEW_SIZE = 21;
 constexpr int PLAYER_VIEW_SIZE = 15;
 constexpr unsigned int MAX_PLAYER = 10000;
 constexpr int MAX_GAME_ID_LEN = 10;
+constexpr int MAX_CHAT_LEN = 50;
 
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
@@ -65,5 +66,13 @@ struct MsgTeleport : public MsgBase {
 	short x, y;
 
 	MsgTeleport(short x, short y) : MsgBase{ sizeof(MsgTeleport), MsgType::CS_TELEPORT }, x{ x }, y{ y } {}
+};
+
+struct MsgChat : public MsgBase {
+	wchar_t msg[MAX_CHAT_LEN + 1];
+
+	MsgChat(const wchar_t* msg) : MsgBase{ sizeof(MsgChat), MsgType::SC_CHAT } {
+		lstrcpyn(this->msg, msg, MAX_CHAT_LEN);
+	}
 };
 #pragma pack(pop)
