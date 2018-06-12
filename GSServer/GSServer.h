@@ -8,4 +8,5 @@ void AcceptThreadFunc();
 void WorkerThreadFunc();
 void TimerThreadFunc();
 void DBThreadFunc();
+void InitDB();
 void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos);
