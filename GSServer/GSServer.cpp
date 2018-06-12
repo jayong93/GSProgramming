@@ -100,7 +100,10 @@ void AcceptThreadFunc()
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
 		TCHAR name[MAX_GAME_ID_LEN + 1];
-		recv(clientSock, (char*)name, sizeof(name), 0);
+		int retval{ 0 };
+		do {
+			retval += recv(clientSock, (char*)name, sizeof(name), 0);
+		} while (retval < sizeof(name));
 
 		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
 			AddNewClient(clientSock, name, xPos, yPos);

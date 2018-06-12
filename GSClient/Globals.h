@@ -9,6 +9,7 @@ struct Global {
 	HANDLE iocpObject;
 	HWND mainWin;
 	Client* myInstance = nullptr;
+	TCHAR gameID[MAX_GAME_ID_LEN+1];
 };
 
 #ifndef SET_GLOBALS
