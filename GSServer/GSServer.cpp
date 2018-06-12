@@ -99,10 +99,14 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		auto xPos = posRange(rndGen);
-		auto yPos = posRange(rndGen);
-		AddNewClient(clientSock, L"", xPos, yPos);
+		TCHAR name[MAX_GAME_ID_LEN + 1];
+		recv(clientSock, (char*)name, sizeof(name), 0);
 
+		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
+			AddNewClient(clientSock, name, xPos, yPos);
+		};
+
+		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
 	}
 
 	shutdown(sock, SD_BOTH);
@@ -142,6 +146,18 @@ void TimerThreadFunc()
 		auto elapsedTime = (endTime - startTime).count();
 		// 1초마다 타이머 실행
 		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
+	}
+}
+
+void DBThreadFunc()
+{
+	while (true) {
+		while (!dbMsgQueue.isEmpty()) {
+			auto& msg = dbMsgQueue.Top();
+			msg->execute();
+			dbMsgQueue.Pop();
+		}
+		Sleep(0);
 	}
 }
 
