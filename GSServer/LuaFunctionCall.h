@@ -32,7 +32,7 @@ private:
 
 class LFCSetMyId : public LuaFunctionCall {
 public:
-	LFCSetMyId(int myId) : myId{ myId } {}
+	LFCSetMyId(unsigned int myId) : myId{ myId } {}
 	virtual bool operator()(lua_State* L) {
 		lua_getglobal(L, "set_my_id");
 		lua_pushnumber(L, myId);
@@ -43,5 +43,5 @@ public:
 		return true;
 	}
 private:
-	int myId;
+	unsigned int myId;
 };
