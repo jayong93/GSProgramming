@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "ObjectManager.h"
+#include "AIQueue.h"
 #include "NetworkManager.h"
+#include "LuaFunctionCall.h"
 #include "Globals.h"
 
-void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
+void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg)
 {
 	auto locked = objManager.GetUniqueCollection();
 
@@ -61,14 +63,11 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgType::CS_INPUT_MOVE:
 	{
 		auto& rMsg = *(const MsgInputMove*)(&msg);
-		auto newClientX = max(0, min(client->x + rMsg.dx, BOARD_W - 1));
-		auto newClientY = max(0, min(client->y + rMsg.dy, BOARD_H - 1));
 		auto oldX = client->x;
 		auto oldY = client->y;
 		{
 			std::unique_lock<std::mutex> lg{ client->lock };
-			client->x = newClientX;
-			client->y = newClientY;
+			client->Move(rMsg.dx, rMsg.dy);
 		}
 
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
@@ -79,14 +78,13 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		for (auto& id : nearList) {
 			if (objManager.IsPlayer(id)) continue;
 
-			lua_State* L{ nullptr };
+			UniqueLocked<lua_State*> lock;
 			{
 				auto locked = objManager.GetUniqueCollection();
-				auto& npc = *(AI_NPC*)locked->at(id).get();
-				L = npc.luaState;
+				lock = ((AI_NPC*)locked->at(id).get())->GetLuaState();
 			}
 
-			LFCPlayerMoved{ client->id, client->x, client->y }(L);
+			LFCPlayerMoved{ client->id, client->x, client->y }(lock);
 		}
 	}
 	break;
@@ -107,7 +105,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		auto nearList = objManager.GetNearList(client->id);
 		client->UpdateViewList(nearList);
 	}
-		break;
+	break;
 	}
 }
 
@@ -139,3 +137,6 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	networkManager.RecvNetworkMessage(*eov.client);
 }
 
+ExtOverlappedNPC::ExtOverlappedNPC(const NPCMsg & msg) : msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
+
+ExtOverlappedNPC::ExtOverlappedNPC(std::unique_ptr<const NPCMsg>&& msg) : msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }

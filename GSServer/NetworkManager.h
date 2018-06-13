@@ -1,8 +1,8 @@
 #pragma once
 #include "../Share/Shares.h"
-#include "AIQueue.h"
 
 class Client;
+struct NPCMsg;
 
 struct ExtOverlapped {
 	WSAOVERLAPPED ov;
@@ -21,16 +21,17 @@ struct ExtOverlapped {
 
 struct ExtOverlappedNPC {
 	WSAOVERLAPPED ov;
-	NPCMsg msg;
+	std::unique_ptr<const NPCMsg> msg;
 
-	ExtOverlappedNPC(const NPCMsg& msg) : msg{ msg } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNPC(const NPCMsg& msg);
+	ExtOverlappedNPC(std::unique_ptr<const NPCMsg>&& msg);
 	ExtOverlappedNPC(const ExtOverlappedNPC&) = delete;
 	ExtOverlappedNPC& operator=(const ExtOverlappedNPC&) = delete;
 };
 
 class NetworkManager {
 public:
-	void SendNetworkMessage(int id, MsgBase& msg);
+	void SendNetworkMessageWithID(int id, MsgBase& msg);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
 	void RecvNetworkMessage(Client& sock);
 private:
