@@ -175,7 +175,8 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
 
-	newClient.UpdateViewList();
+	auto nearList = objManager.GetNearList(clientId);
+	newClient.UpdateViewList(nearList);
 
 	networkManager.RecvNetworkMessage(newClient);
 }
