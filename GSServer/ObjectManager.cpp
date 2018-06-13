@@ -85,6 +85,12 @@ void Object::UpdateViewList()
 				}
 			}
 		}
+
+		// npc인 경우 플레이어가 근처에 있을 때 스크립트 실행
+		if (!isPlayer) {
+			auto& npc = *(AI_NPC*)&player;
+			LFCPlayerMoved{ me.id, me.x, me.y }(npc.luaState);
+		}
 	}
 
 	std::vector<unsigned int> removedList;

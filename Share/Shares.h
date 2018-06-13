@@ -69,9 +69,10 @@ struct MsgTeleport : public MsgBase {
 };
 
 struct MsgChat : public MsgBase {
+	unsigned int from;
 	wchar_t msg[MAX_CHAT_LEN + 1];
 
-	MsgChat(const wchar_t* msg) : MsgBase{ sizeof(MsgChat), MsgType::SC_CHAT } {
+	MsgChat(unsigned int from, const wchar_t* msg) : MsgBase{ sizeof(MsgChat), MsgType::SC_CHAT }, from{ from } {
 		lstrcpyn(this->msg, msg, MAX_CHAT_LEN);
 	}
 };

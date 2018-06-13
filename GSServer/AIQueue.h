@@ -1,10 +1,9 @@
 #pragma once
+#include "LuaFunctionCall.h"
 
 enum class NpcMsgType { NONE, MOVE_RANDOM, CALL_LUA_FUNC };
 
 constexpr unsigned int MAX_NPC = 2000;
-
-class LuaFunctionCall;
 
 struct NPCMsg {
 	unsigned int id;
@@ -25,7 +24,7 @@ struct NPCMsgCallLuaFunc : public NPCMsg {
 };
 
 struct NpcMsgComp {
-	bool operator()(const NPCMsg& a, const NPCMsg& b) { return a.time > b.time; }
+	bool operator()(const std::unique_ptr<NPCMsg>& a, const std::unique_ptr<NPCMsg>& b) { return a->time > b->time; }
 };
 
 template <typename Comp>
@@ -35,11 +34,11 @@ class NPCMsgQueue {
 
 public:
 	NPCMsgQueue(Comp comp) : msgQueue{ comp } {}
-	const NPCMsg& Top() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.top(); }
+	const NPCMsg& Top() { std::unique_lock<std::mutex> lg{ lock }; return *msgQueue.top().get(); }
 	void Pop() { std::unique_lock<std::mutex> lg{ lock }; msgQueue.pop(); }
 
 	void Push(std::unique_ptr<NPCMsg>&& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(std::move(msg)); }
-	void Push(NPCMsg& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(std::unique_ptr<NPCMsg>{msg}); }
+	void Push(NPCMsg& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(std::unique_ptr<NPCMsg>{&msg}); }
 	bool isEmpty() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.empty(); }
 };
 

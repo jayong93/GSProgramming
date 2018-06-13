@@ -2,10 +2,17 @@
 #include "../Share/Shares.h"
 #include "GSClient.h"
 
+struct Chat {
+	TCHAR chatMsg[MAX_CHAT_LEN + 1] = { 0, };
+	std::chrono::high_resolution_clock::time_point lastChatTime;
+	bool isValid{ false };
+};
+
 struct Object {
 	unsigned int id = 0;
 	short x = 0, y = 0;
 	COLORREF color = RGB(255, 255, 255);
+	Chat chat;
 
 	Object() {}
 	Object(int x, int y, const Color& color) : x( x ), y( y ), color{ RGB(color.r, color.g, color.b) } {}
