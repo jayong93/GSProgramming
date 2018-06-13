@@ -114,6 +114,14 @@ void Object::UpdateViewList(std::unordered_set<unsigned int>& nearList)
 	}
 }
 
+void Object::Move(short dx, short dy)
+{
+	this->x += dx;
+	this->y += dy;
+	this->x = max(0, min(this->x, BOARD_W - 1));
+	this->y = max(0, min(this->y, BOARD_H - 1));
+}
+
 lua_State * AI_NPC::InitLuaState(unsigned int id, const char* scriptName) noexcept
 {
 	auto state = luaL_newstate();
@@ -124,6 +132,11 @@ lua_State * AI_NPC::InitLuaState(unsigned int id, const char* scriptName) noexce
 		return state;
 	}
 	RegisterCFunctions(state);
-	LFCSetMyId{ id }(state);
+	lua_getglobal(state, "set_my_id");
+	lua_pushnumber(state, id);
+	if (lua_pcall(state, 1, 0, 0) != 0) {
+		display_error(state);
+		return state;
+	}
 	return state;
 }

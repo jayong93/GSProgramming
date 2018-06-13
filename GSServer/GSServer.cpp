@@ -141,12 +141,12 @@ void TimerThreadFunc()
 	while (true) {
 		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
 		while (!npcMsgQueue.isEmpty()) {
-			auto& msg = npcMsgQueue.Top();
-			if (msg.time > startTime.time_since_epoch().count()) break;
+			auto msg = npcMsgQueue.Top();
+			if (msg->time > startTime.time_since_epoch().count()) break;
 
-			auto nmsg = new ExtOverlappedNPC{ msg };
-			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 복사되었으므로 Pop해도 안전
-			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg.id, (LPWSAOVERLAPPED)nmsg);
+			auto nmsg = new ExtOverlappedNPC{ *msg };
+			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
+			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg->id, (LPWSAOVERLAPPED)nmsg);
 		}
 		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
 		auto elapsedTime = (endTime - startTime).count();
