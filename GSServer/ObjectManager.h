@@ -13,7 +13,7 @@ struct Object {
 	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } { o.id = 0; }
 
-	void UpdateViewList();
+	void UpdateViewList(std::unordered_set<unsigned int>& nearList);
 };
 
 struct AI_NPC : public Object {

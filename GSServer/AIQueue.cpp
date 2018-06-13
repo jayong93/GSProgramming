@@ -44,7 +44,8 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 		}
 		locked.unlock();
 
-		npc->UpdateViewList();
+		auto nearList = objManager.GetNearList(npc->id);
+		npc->UpdateViewList(nearList);
 
 		std::unique_lock<std::mutex> lg{ npc->lock };
 		if (npc->viewList.size() > 0) {

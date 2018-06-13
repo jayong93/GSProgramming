@@ -28,10 +28,8 @@ std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 	return nearList;
 }
 
-void Object::UpdateViewList()
+void Object::UpdateViewList(std::unordered_set<unsigned int>& nearList)
 {
-	auto nearList = objManager.GetNearList(id);
-
 	const bool amIPlayer = objManager.IsPlayer(id);
 	auto locked = objManager.GetUniqueCollection();
 	auto& me = *this;
@@ -84,12 +82,6 @@ void Object::UpdateViewList()
 					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgPutObject{ me.id, me.x, me.y, me.color });
 				}
 			}
-		}
-
-		// npc인 경우 플레이어가 근처에 있을 때 스크립트 실행
-		if (!isPlayer) {
-			auto& npc = *(AI_NPC*)&player;
-			LFCPlayerMoved{ me.id, me.x, me.y }(npc.luaState);
 		}
 	}
 

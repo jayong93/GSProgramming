@@ -74,7 +74,20 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		client->UpdateViewList();
+		auto nearList = objManager.GetNearList(client->id);
+		client->UpdateViewList(nearList);
+		for (auto& id : nearList) {
+			if (objManager.IsPlayer(id)) continue;
+
+			lua_State* L{ nullptr };
+			{
+				auto locked = objManager.GetUniqueCollection();
+				auto& npc = *(AI_NPC*)locked->at(id).get();
+				L = npc.luaState;
+			}
+
+			LFCPlayerMoved{ client->id, client->x, client->y }(L);
+		}
 	}
 	break;
 	case MsgType::CS_TELEPORT:
@@ -91,7 +104,8 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		client->UpdateViewList();
+		auto nearList = objManager.GetNearList(client->id);
+		client->UpdateViewList(nearList);
 	}
 		break;
 	}
