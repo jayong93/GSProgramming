@@ -3,44 +3,62 @@
 #include "ObjectManager.h"
 #include "Globals.h"
 
+bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
+{
+	auto id = ptr->id;
+	auto result = this->data.emplace(id, std::move(ptr));
+	return result.second;
+}
+
+bool ObjectManager::Insert(Object & o)
+{
+	auto id = o.id;
+	auto result = this->data.emplace(id, std::unique_ptr<Object>{&o});
+	return result.second;
+}
+
+bool ObjectManager::Remove(unsigned int id)
+{
+	if (1 == this->data.erase(id)) return true;
+	return false;
+}
+
 std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
 {
 	std::unordered_set<unsigned int> nearList;
-	{
-		auto locked = this->GetUniqueCollection();
-		const Object* obj = locked->at(id).get();
+	objManager.LockAndExec([id, &nearList](auto& map){
+		const Object* obj = map.at(id).get();
 
 		auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
 		for (auto s : nearSectors) {
 			std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
 				if (id == obj->id) return false;
 
-				auto it = locked->find(id);
-				if (it == locked->end()) return false;
+				auto it = map.find(id);
+				if (it == map.end()) return false;
 				auto o = it->second.get();
 				std::unique_lock<std::mutex> lg{ o->lock };
 				return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
 			});
 		}
-	}
+	});
 	return nearList;
 }
 
-void Object::UpdateViewList()
+void UpdateViewList(unsigned int id, std::unordered_set<unsigned int>& nearList, ObjectMap& map)
 {
-	auto nearList = objManager.GetNearList(id);
-
 	const bool amIPlayer = objManager.IsPlayer(id);
-	auto locked = objManager.GetUniqueCollection();
-	auto& me = *this;
+	auto it = map.find(id);
+	if (map.end() == it) return;
+	auto& me = *it->second;
 
 	for (auto& playerId : nearList) {
 		const bool isPlayer = objManager.IsPlayer(playerId);
 
 		if (!amIPlayer && !isPlayer) continue; // 둘 다 NPC면 viewlist 업데이트 의미 없음.
 
-		auto it = locked->find(playerId);
-		if (it == locked->end()) continue;
+		auto it = map.find(playerId);
+		if (it == map.end()) continue;
 		auto& player = *it->second;
 
 		bool isInserted{ false };
@@ -106,8 +124,8 @@ void Object::UpdateViewList()
 		}
 
 		const bool isPlayer = objManager.IsPlayer(id);
-		auto it = locked->find(id);
-		if (it == locked->end()) continue;
+		auto it = map.find(id);
+		if (it == map.end()) continue;
 		auto player = it->second.get();
 
 		std::unique_lock<std::mutex> lg{ player->lock };

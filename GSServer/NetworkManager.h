@@ -2,7 +2,9 @@
 #include "../Share/Shares.h"
 #include "AIQueue.h"
 
-class Client;
+struct Client;
+struct Object;
+using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
 
 struct ExtOverlapped {
 	WSAOVERLAPPED ov;
@@ -30,7 +32,7 @@ struct ExtOverlappedNPC {
 
 class NetworkManager {
 public:
-	void SendNetworkMessage(int id, MsgBase& msg);
+	void SendNetworkMessage(int id, MsgBase& msg, ObjectMap& map);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
 	void RecvNetworkMessage(Client& sock);
 private:

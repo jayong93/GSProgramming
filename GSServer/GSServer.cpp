@@ -16,19 +16,16 @@ int main() {
 
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return 1;
-	
+
 	InitDB();
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
-	{
-		auto locked = objManager.GetUniqueCollection();
-		for (auto i = 0; i < MAX_NPC; ++i) {
-			auto id = npcNextId++;
-			auto npc = std::make_unique<Object>(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)));
-			sectorManager.AddToSector(npc->id, npc->x, npc->y);
-			locked->emplace(id, std::move(npc));
-		}
+	for (auto i = 0; i < MAX_NPC; ++i) {
+		auto id = npcNextId++;
+		auto npc = std::make_unique<Object>(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)));
+		sectorManager.AddToSector(npc->id, npc->x, npc->y);
+		objManager.Insert(std::move(npc));
 	}
 
 	std::vector<std::thread> threadList;
@@ -51,23 +48,18 @@ void RemoveClient(Client* client)
 	if (nullptr == client) return;
 	closesocket(client->s);
 	std::unique_ptr<Object> localClient;
-	{
-		auto locked = objManager.GetUniqueCollection();
-		auto it = locked->find(client->id);
-		if (it != locked->end())
-		{
-			// 해당 클라이언트에 대한 다른 클라이언트의 접근이 모두 끝난 뒤에 이동
-			std::unique_lock<std::mutex> clg{ client->lock };
-			localClient = std::move(it->second);
-		}
-		else return;
-		locked->erase(it);
-	}
-	{
-		auto locked = objManager.GetUniqueCollection();
+	objManager.LockAndExec([client, &localClient](auto& map) {
+		auto it = map.find(client->id);
+		if (map.end() == it) return;
+		localClient.swap(it->second);
+		map.erase(it);
+	});
+	if (!localClient) return;
+
+	objManager.LockAndExec([client](auto& map) {
 		for (auto& id : client->viewList) {
-			auto it = locked->find(id);
-			if (it == locked->end()) continue;
+			auto it = map.find(id);
+			if (it == map.end()) continue;
 			auto& player = *reinterpret_cast<Client*>(it->second.get());
 			std::unique_lock<std::mutex> plg{ player.lock };
 			const auto removedCount = player.viewList.erase(client->id);
@@ -75,7 +67,7 @@ void RemoveClient(Client* client)
 				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });
 			}
 		}
-	}
+	});
 	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
 	printf_s("client #%d has disconnected\n", localClient->id);
 }
@@ -215,16 +207,15 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 
 	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
-	{
-		auto locked = objManager.GetUniqueCollection();
 
+	objManager.LockAndExec([sock, clientId, &newClientPtr](auto& map) {
 		// 이미 NPC들이 들어가있는 것을 감안해야 함.
-		if (locked->size() - MAX_NPC > MAX_PLAYER) {
+		if (map.size() - MAX_NPC > MAX_PLAYER) {
 			closesocket(sock);
 			return;
 		}
-		locked->emplace(clientId, std::move(newClientPtr));
-	}
+		map.emplace(clientId, std::move(newClientPtr));
+	});
 
 	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
@@ -233,7 +224,8 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
 
-	newClient.UpdateViewList();
+	auto nearList = objManager.GetNearList(clientId);
+	objManager.LockAndExec([clientId, &nearList](auto& map) {UpdateViewList(clientId, nearList, map); });
 
 	networkManager.RecvNetworkMessage(newClient);
 }

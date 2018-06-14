@@ -3,12 +3,10 @@
 #include "NetworkManager.h"
 #include "Globals.h"
 
-void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
+void NetworkManager::SendNetworkMessage(int id, MsgBase & msg, ObjectMap& map)
 {
-	auto locked = objManager.GetUniqueCollection();
-
-	auto it = locked->find(id);
-	if (it == locked->end()) return;
+	auto it = map.find(id);
+	if (it == map.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
 	auto eov = new ExtOverlapped{ client.s, msg };
@@ -74,7 +72,8 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		client->UpdateViewList();
+		auto nearList = objManager.GetNearList(client->id);
+		objManager.LockAndExec([this, &nearList](auto& map) {UpdateViewList(this->client->id, nearList, map); });
 	}
 	break;
 	case MsgType::CS_TELEPORT:
@@ -91,7 +90,8 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		client->UpdateViewList();
+		auto nearList = objManager.GetNearList(client->id);
+		objManager.LockAndExec([this, &nearList](auto& map) {UpdateViewList(this->client->id, nearList, map); });
 	}
 		break;
 	}

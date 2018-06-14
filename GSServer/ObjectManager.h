@@ -9,11 +9,8 @@ struct Object {
 	Color color;
 	std::unordered_set<unsigned int> viewList;
 
-	Object() : color{ 0,0,0 } {}
 	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } {}
-
-	void UpdateViewList();
 };
 
 using NPC = Object;
@@ -39,24 +36,37 @@ struct Client : public Object {
 
 using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
 
-struct UniqueLocked {
-public:
-	UniqueLocked(std::mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
-	UniqueLocked(UniqueLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	ObjectMap* operator->() { return &data; }
-	void unlock() { lg.unlock(); }
-
-private:
-	ObjectMap & data;
-	std::unique_lock<std::mutex> lg;
-};
-
 class ObjectManager {
 public:
-	UniqueLocked GetUniqueCollection() { return UniqueLocked{ lock, data }; }
+	ObjectManager() {}
+
+	bool Insert(std::unique_ptr<Object>&& ptr);
+	bool Insert(Object& o);
+	bool Remove(unsigned int id);
+	
+	template <typename Func>
+	bool Update(unsigned int id, Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		auto it = data.find(id);
+		if (data.end() == it) return false;
+		func(*it->second);
+	}
+
+	template <typename Func>
+	void LockAndExec(Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		func(data);
+	}
+
 	std::unordered_set<unsigned int> GetNearList(unsigned int id);
 	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
+	
+	ObjectManager(const ObjectManager&) = delete;
+	ObjectManager& operator=(const ObjectManager&) = delete;
+
 private:
 	std::mutex lock;
 	ObjectMap data;
 };
+
+void UpdateViewList(unsigned int id, std::unordered_set<unsigned int>& nearList, ObjectMap& map);
