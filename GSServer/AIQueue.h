@@ -39,6 +39,7 @@ public:
 	const NPCMsg* Top() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.top(); }
 	void Pop() { std::unique_lock<std::mutex> lg{ lock }; msgQueue.pop(); }
 	void Push(NPCMsg& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(&msg); }
+	void Push(NPCMsg&& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(&msg); }
 	bool isEmpty() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.empty(); }
 };
 

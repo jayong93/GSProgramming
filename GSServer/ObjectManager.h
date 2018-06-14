@@ -31,11 +31,9 @@ struct Object {
 	Color color;
 	std::unordered_set<unsigned int> viewList;
 
-	Object() : color{ 0,0,0 } {}
 	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } { o.id = 0; }
 
-	void UpdateViewList(std::unordered_set<unsigned int>& nearList);
 	void Move(short dx, short dy);
 };
 
@@ -76,10 +74,36 @@ using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
 
 class ObjectManager {
 public:
-	UniqueLocked<ObjectMap> GetUniqueCollection() { return UniqueLocked<ObjectMap>{ lock, data }; }
+	ObjectManager() {}
+
+	bool Insert(std::unique_ptr<Object>&& ptr);
+	bool Insert(Object& o);
+	bool Remove(unsigned int id);
+	
+	template <typename Func>
+	bool Update(unsigned int id, Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		auto it = data.find(id);
+		if (data.end() == it) return false;
+		func(*it->second);
+	}
+
+	template <typename Func>
+	void LockAndExec(Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		func(data);
+	}
+
 	std::unordered_set<unsigned int> GetNearList(unsigned int id);
 	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
+	void UpdateViewList(unsigned int id);
+	
+	ObjectManager(const ObjectManager&) = delete;
+	ObjectManager& operator=(const ObjectManager&) = delete;
+
 private:
 	std::mutex lock;
 	ObjectMap data;
 };
+
+void UpdateViewList(unsigned int id, std::unordered_set<unsigned int>& nearList, ObjectMap& map);

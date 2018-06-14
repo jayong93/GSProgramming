@@ -20,7 +20,7 @@ int C_SendMessage(lua_State * L)
 	auto nearList = objManager.GetNearList(myId);
 	for (auto& id : nearList) {
 		if (objManager.IsPlayer(id))
-			networkManager.SendNetworkMessageWithID(id, *new MsgChat{ myId , msg.c_str() });
+			objManager.LockAndExec([id, myId, &msg](auto& map) {networkManager.SendNetworkMessageWithID(id, *new MsgChat{ myId , msg.c_str() }, map); });
 	}
 	return 0;
 }
@@ -30,13 +30,8 @@ int C_GetMyPos(lua_State * L)
 	int myId = lua_tonumber(L, -1);
 	lua_pop(L, 2);
 
-	auto locked = objManager.GetUniqueCollection();
-	auto it = locked->find(myId);
-	if (it != locked->end()) {
-		lua_pushnumber(L, it->second->x);
-		lua_pushnumber(L, it->second->y);
+	if (objManager.Update(myId, [L](auto& obj) {lua_pushnumber(L, obj.x); lua_pushnumber(L, obj.y); }))
 		return 2;
-	}
 	return 0;
 }
 
@@ -70,14 +65,9 @@ int C_Move(lua_State * L)
 	short dy = lua_tonumber(L, -1);
 	lua_pop(L, 4);
 
-	auto locked = objManager.GetUniqueCollection();
-	auto& npc = locked->at(id);
-	// 이 NPC 객체는 C에서 lua 함수를 호출 할 때 이미 lock이 걸려있기 때문에 추가적인 lock을 걸면 안됨.
-	npc->Move(dx, dy);
-	locked.unlock();
+	objManager.Update(id, [dx, dy](auto& npc) {npc.Move(dx, dy); });
 
-	auto nearList = objManager.GetNearList(id);
-	npc->UpdateViewList(nearList);
+	objManager.UpdateViewList(id);
 	return 0;
 }
 

@@ -5,12 +5,10 @@
 #include "LuaFunctionCall.h"
 #include "Globals.h"
 
-void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg)
+void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg, ObjectMap& map)
 {
-	auto locked = objManager.GetUniqueCollection();
-
-	auto it = locked->find(id);
-	if (it == locked->end()) return;
+	auto it = map.find(id);
+	if (it == map.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
 	auto eov = new ExtOverlapped{ client.s, msg };
@@ -74,18 +72,16 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
 		auto nearList = objManager.GetNearList(client->id);
-		client->UpdateViewList(nearList);
-		for (auto& id : nearList) {
-			if (objManager.IsPlayer(id)) continue;
+		objManager.LockAndExec([this, &nearList](auto& map) {
+			UpdateViewList(this->client->id, nearList, map);
+			for (auto& id : nearList) {
+				if (ObjectManager::IsPlayer(id)) continue;
 
-			UniqueLocked<lua_State*> lock;
-			{
-				auto locked = objManager.GetUniqueCollection();
-				lock = ((AI_NPC*)locked->at(id).get())->GetLuaState();
+				auto lock = ((AI_NPC*)map.at(id).get())->GetLuaState();
+
+				LFCPlayerMoved{ this->client->id, this->client->x, this->client->y }(lock);
 			}
-
-			LFCPlayerMoved{ client->id, client->x, client->y }(lock);
-		}
+		});
 	}
 	break;
 	case MsgType::CS_TELEPORT:
@@ -102,8 +98,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		auto nearList = objManager.GetNearList(client->id);
-		client->UpdateViewList(nearList);
+		objManager.UpdateViewList(this->client->id);
 	}
 	break;
 	}
