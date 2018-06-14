@@ -17,42 +17,40 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 	switch (ov->msg->type) {
 	case NpcMsgType::MOVE_RANDOM:
 	{
-		auto locked = objManager.GetUniqueCollection();
-		const auto it = locked->find(ov->msg->id);
-		if (it == locked->end()) break;
-		auto& npc = it->second;
-
-		const auto direction = rand() % 4;
-		auto newX = npc->x;
-		auto newY = npc->y;
-		{
-			std::unique_lock<std::mutex> lg{ npc->lock };
-			switch (direction) {
-			case 0: // 왼쪽
-				newX -= 1;
-				break;
-			case 1: // 오른쪽
-				newX += 1;
-				break;
-			case 2: // 위
-				newY -= 1;
-				break;
-			case 3: // 아래
-				newY += 1;
-				break;
+		objManager.Update(ov->msg->id, [](auto& npc) {
+			const auto direction = rand() % 4;
+			auto newX = npc.x;
+			auto newY = npc.y;
+			{
+				std::unique_lock<std::mutex> lg{ npc.lock };
+				switch (direction) {
+				case 0: // 왼쪽
+					newX -= 1;
+					break;
+				case 1: // 오른쪽
+					newX += 1;
+					break;
+				case 2: // 위
+					newY -= 1;
+					break;
+				case 3: // 아래
+					newY += 1;
+					break;
+				}
+				npc.x = max(0, min(newX, BOARD_W - 1));
+				npc.y = max(0, min(newY, BOARD_H - 1));
 			}
-			npc->x = max(0, min(newX, BOARD_W - 1));
-			npc->y = max(0, min(newY, BOARD_H - 1));
-		}
-		locked.unlock();
+		});
 
-		auto nearList = objManager.GetNearList(npc->id);
-		npc->UpdateViewList(nearList);
+		auto nearList = objManager.GetNearList(ov->msg->id);
+		objManager.LockAndExec([&ov, &nearList](auto& map) {UpdateViewList(ov->msg->id, nearList, map); });
 
-		std::unique_lock<std::mutex> lg{ npc->lock };
-		if (npc->viewList.size() > 0) {
-			npcMsgQueue.Push(*new NPCMsg(npc->id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
-		}
+		objManager.Update(ov->msg->id, [recvTime](auto& npc) {
+			std::unique_lock<std::mutex> lg{ npc.lock };
+			if (npc.viewList.size() > 0) {
+				npcMsgQueue.Push(NPCMsg(npc.id, NpcMsgType::MOVE_RANDOM, recvTime + 1000));
+			}
+		});
 	}
 	break;
 	case NpcMsgType::CALL_LUA_FUNC:
@@ -60,10 +58,9 @@ void NPCMsgCallback(DWORD error, ExtOverlappedNPC *& ov)
 		auto& rMsg = *(NPCMsgCallLuaFunc*)ov->msg.get();
 		auto& call = *rMsg.call.get();
 		UniqueLocked<lua_State*> lock;
-		{
-			auto locked = objManager.GetUniqueCollection();
-			lock = ((AI_NPC*)locked->at(rMsg.id).get())->GetLuaState();
-		}
+		objManager.LockAndExec([&lock, &rMsg](auto& map){
+			lock = ((AI_NPC*)map.at(rMsg.id).get())->GetLuaState();
+		});
 		call(lock);
 	}
 	break;

@@ -1,7 +1,9 @@
 #pragma once
 #include "../Share/Shares.h"
 
-class Client;
+struct Client;
+struct Object;
+using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
 struct NPCMsg;
 
 struct ExtOverlapped {
@@ -31,7 +33,7 @@ struct ExtOverlappedNPC {
 
 class NetworkManager {
 public:
-	void SendNetworkMessageWithID(int id, MsgBase& msg);
+	void SendNetworkMessageWithID(int id, MsgBase& msg, ObjectMap& map);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
 	void RecvNetworkMessage(Client& sock);
 private:
