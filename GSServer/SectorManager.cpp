@@ -27,7 +27,7 @@ std::vector<Sector> SectorManager::GetNearSectors(unsigned int sectorIdx)
 	const auto sectorMinY = max(sectorY - 1, 0);
 	const auto sectorMaxY = min(sectorY + 1, vertSectorNum - 1);
 
-	std::shared_lock<std::shared_timed_mutex> lg{ this->lock };
+	std::unique_lock<std::mutex> lg{ this->lock };
 	for (auto i = sectorMinY; i <= sectorMaxY; ++i) {
 		for (auto j = sectorMinX; j <= sectorMaxX; ++j) {
 			nearSectors.emplace_back(sectorList[i*horiSectorNum + j]);
@@ -48,9 +48,8 @@ bool SectorManager::UpdateSector(unsigned int id, unsigned int oldX, unsigned in
 	auto& newSector = sectorList[newIdx];
 
 	auto it = oldSector.find(id);
-	if (it == oldSector.end()) return false;
-	
-	oldSector.erase(it);
+	if (it != oldSector.end())
+		oldSector.erase(it);
 	newSector.emplace(id);
 
 	return true;
@@ -63,7 +62,7 @@ bool SectorManager::AddToSector(unsigned int id, unsigned int x, unsigned int y)
 	if (idx < 0 || idx >= sectorList.size()) return false;
 
 	auto& sector = sectorList[idx];
-	
+
 	auto it = sector.find(id);
 	if (it != sector.end()) return false;
 

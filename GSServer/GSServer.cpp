@@ -54,27 +54,27 @@ void RemoveClient(Client* client)
 		if (it != locked->end())
 		{
 			// 해당 클라이언트에 대한 다른 클라이언트의 접근이 모두 끝난 뒤에 이동
-			std::unique_lock<std::shared_timed_mutex> clg{ client->lock };
+			std::unique_lock<std::mutex> clg{ client->lock };
 			localClient = std::move(it->second);
 		}
 		else return;
 		locked->erase(it);
 	}
 	{
-		auto locked = objManager.GetSharedCollection();
-		std::vector<SOCKET> sendList;
+		auto locked = objManager.GetUniqueCollection();
 		for (auto& id : client->viewList) {
 			auto it = locked->find(id);
 			if (it == locked->end()) continue;
 			auto& player = *reinterpret_cast<Client*>(it->second.get());
-			std::unique_lock<std::shared_timed_mutex> plg{ player.lock };
+			std::unique_lock<std::mutex> plg{ player.lock };
 			const auto removedCount = player.viewList.erase(client->id);
 			if (removedCount == 1) {
-				sendList.emplace_back(player.s);
+				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });
 			}
 		}
-		networkManager.SendNetworkMessage(sendList, *new MsgRemoveObject{ client->id });
 	}
+	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
+	printf_s("client #%d has disconnected\n", localClient->id);
 }
 
 void AcceptThreadFunc()
@@ -99,12 +99,9 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		TCHAR name[MAX_GAME_ID_LEN + 1];
-		recv(clientSock, (char*)name, sizeof(name), 0);
-
 		auto xPos = posRange(rndGen);
 		auto yPos = posRange(rndGen);
-		AddNewClient(clientSock, name, xPos, yPos);
+		AddNewClient(clientSock, L"", xPos, yPos);
 
 	}
 
@@ -117,8 +114,8 @@ void WorkerThreadFunc()
 	DWORD bytes;
 	ULONG_PTR key;
 	ExtOverlapped* ov;
-	DWORD error{ 0 };
 	while (true) {
+		DWORD error{ 0 };
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
 		if (FALSE == isSuccess) error = GetLastError();
 		if (key >= MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
@@ -154,7 +151,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	unsigned int clientId{ nextId++ };
 
 	if (clientId >= MAX_PLAYER) {
-		printf_s("too many clients! no more clients can join to the server");
+		printf_s("too many clients! no more clients can join to the server\n");
 		return;
 	}
 
@@ -173,7 +170,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 
 	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
-	printf_s("client(id: %d) has connected\n", clientId);
+	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
