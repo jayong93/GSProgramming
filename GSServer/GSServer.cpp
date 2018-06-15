@@ -135,9 +135,8 @@ void WorkerThreadFunc()
 void TimerThreadFunc()
 {
 	using namespace std::chrono;
-	time_point<high_resolution_clock, milliseconds> startTime, endTime;
 	while (true) {
-		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
+		auto startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
 		while (!timerQueue.isEmpty()) {
 			auto msg = timerQueue.Top();
 			if (msg->GetTime() > startTime.time_since_epoch().count()) break;
@@ -146,10 +145,7 @@ void TimerThreadFunc()
 			timerQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
 			PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPWSAOVERLAPPED)eov);
 		}
-		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		auto elapsedTime = (endTime - startTime).count();
-		// 1초마다 타이머 실행
-		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
+		Sleep(0);
 	}
 }
 

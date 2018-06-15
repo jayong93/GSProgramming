@@ -68,4 +68,6 @@ public:
 	void Push(TimerEventBase&& msg) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(&msg); }
 	void Push(std::unique_ptr<TimerEventBase>&& ptr) { std::unique_lock<std::mutex> lg{ lock }; msgQueue.push(ptr.release()); }
 	bool isEmpty() { std::unique_lock<std::mutex> lg{ lock }; return msgQueue.empty(); }
+
+	static constexpr int interval = 500;
 };
