@@ -10,5 +10,6 @@ public:
 	std::vector<LuaArg> Call(const LuaCall& call, Object& obj, ObjectMap& map);
 
 private:
+	std::mutex lock;
 	lua_State * state;
 };

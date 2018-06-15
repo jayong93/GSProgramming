@@ -19,7 +19,6 @@ struct Object {
 
 struct AI_NPC : public Object {
 	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : Object{ id, x, y, color }, lua{id, scriptName} {};
-	AI_NPC(AI_NPC&& o) : Object{ std::move(o) }, lua{ o.lua } {}
 
 	LuaModule lua;
 };

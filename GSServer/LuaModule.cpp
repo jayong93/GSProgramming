@@ -24,6 +24,8 @@ LuaModule::~LuaModule()
 
 std::vector<LuaArg> LuaModule::Call(const LuaCall & call, Object & obj, ObjectMap & map)
 {
+	std::unique_lock<std::mutex> lg{ lock };
+
 	lua_pushlightuserdata(state, &obj);
 	lua_setfield(state, LUA_REGISTRYINDEX, "obj");
 	lua_pushlightuserdata(state, &map);
