@@ -126,7 +126,7 @@ void WorkerThreadFunc()
 		else {
 			auto eov = std::unique_ptr<ExtOverlappedNetwork>{ reinterpret_cast<ExtOverlappedNetwork*>(ov) };
 			if (FALSE == isSuccess) error = GetLastError();
-			else if (eov->isRecv) { RecvCompletionCallback(error, bytes, eov); }
+			if (eov->isRecv) { RecvCompletionCallback(error, bytes, eov); }
 			else { SendCompletionCallback(error, bytes, eov); }
 		}
 	}
