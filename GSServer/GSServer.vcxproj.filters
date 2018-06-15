@@ -28,6 +28,12 @@
     <Filter Include="소스 파일\AI">
       <UniqueIdentifier>{82dcd11a-7330-48f0-a808-c36e94333750}</UniqueIdentifier>
     </Filter>
+    <Filter Include="소스 파일\Event">
+      <UniqueIdentifier>{cef9fb98-fac0-41ca-a283-6f3f8bb79c73}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\Timer">
+      <UniqueIdentifier>{2f7b96db-00c5-4f1d-a860-b004d86ff917}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Share\Shares.h">
@@ -60,14 +66,23 @@
     <ClInclude Include="SectorManager.h">
       <Filter>소스 파일\World</Filter>
     </ClInclude>
-    <ClInclude Include="AIQueue.h">
-      <Filter>소스 파일\AI</Filter>
-    </ClInclude>
     <ClInclude Include="LuaFunctionCall.h">
       <Filter>소스 파일\AI</Filter>
     </ClInclude>
     <ClInclude Include="CFunctionsForLua.h">
       <Filter>소스 파일\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="Event.h">
+      <Filter>소스 파일\Event</Filter>
+    </ClInclude>
+    <ClInclude Include="TimerQueue.h">
+      <Filter>소스 파일\Timer</Filter>
+    </ClInclude>
+    <ClInclude Include="LuaModule.h">
+      <Filter>소스 파일\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="typedef.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -95,14 +110,17 @@
     <ClCompile Include="SectorManager.cpp">
       <Filter>소스 파일\World</Filter>
     </ClCompile>
-    <ClCompile Include="AIQueue.cpp">
-      <Filter>소스 파일\AI</Filter>
-    </ClCompile>
     <ClCompile Include="LuaFunctionCall.cpp">
       <Filter>소스 파일\AI</Filter>
     </ClCompile>
     <ClCompile Include="CFunctionsForLua.cpp">
       <Filter>소스 파일\AI</Filter>
+    </ClCompile>
+    <ClCompile Include="TimerQueue.cpp">
+      <Filter>소스 파일\Timer</Filter>
+    </ClCompile>
+    <ClCompile Include="LuaModule.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

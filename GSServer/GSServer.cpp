@@ -115,35 +115,37 @@ void WorkerThreadFunc()
 {
 	DWORD bytes;
 	ULONG_PTR key;
-	ExtOverlapped* ov;
+	ExtOverlappedBase* ov;
 	while (true) {
 		DWORD error{ 0 };
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
-		if (FALSE == isSuccess) error = GetLastError();
-		if (key >= MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
-		else if (ov->isRecv) { RecvCompletionCallback(error, bytes, ov); }
-		else { SendCompletionCallback(error, bytes, ov); }
+		if (!ov->isNetworkEvent) {
+			auto eov = std::unique_ptr<ExtOverlappedEvent>{ reinterpret_cast<ExtOverlappedEvent*>(ov) };
+			(*eov->msg)();
+		}
+		else {
+			auto eov = std::unique_ptr<ExtOverlappedNetwork>{ reinterpret_cast<ExtOverlappedNetwork*>(ov) };
+			if (FALSE == isSuccess) error = GetLastError();
+			if (eov->isRecv) { RecvCompletionCallback(error, bytes, eov); }
+			else { SendCompletionCallback(error, bytes, eov); }
+		}
 	}
 }
 
 void TimerThreadFunc()
 {
 	using namespace std::chrono;
-	time_point<high_resolution_clock, milliseconds> startTime, endTime;
 	while (true) {
-		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		while (!npcMsgQueue.isEmpty()) {
-			auto msg = npcMsgQueue.Top();
-			if (msg->time > startTime.time_since_epoch().count()) break;
+		auto startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
+		while (!timerQueue.isEmpty()) {
+			auto msg = timerQueue.Top();
+			if (msg->GetTime() > startTime.time_since_epoch().count()) break;
 
-			auto nmsg = new ExtOverlappedNPC{ *msg };
-			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
-			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg->id, (LPWSAOVERLAPPED)nmsg);
+			auto eov = new ExtOverlappedEvent{ *msg };
+			timerQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
+			PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPWSAOVERLAPPED)eov);
 		}
-		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		auto elapsedTime = (endTime - startTime).count();
-		// 1초마다 타이머 실행
-		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
+		Sleep(0);
 	}
 }
 
@@ -224,8 +226,9 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
 
-	auto nearList = objManager.GetNearList(clientId);
-	objManager.LockAndExec([clientId, &nearList](auto& map) {UpdateViewList(clientId, nearList, map); });
+	objManager.LockAndExec([clientId](auto& map) {
+		UpdateViewList(clientId, map);
+	});
 
 	networkManager.RecvNetworkMessage(newClient);
 }

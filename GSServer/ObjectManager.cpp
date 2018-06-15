@@ -7,6 +7,7 @@
 
 bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
 {
+	std::unique_lock<std::mutex> lg{ this->lock };
 	auto id = ptr->id;
 	auto result = this->data.emplace(id, std::move(ptr));
 	return result.second;
@@ -14,6 +15,7 @@ bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
 
 bool ObjectManager::Insert(Object & o)
 {
+	std::unique_lock<std::mutex> lg{ this->lock };
 	auto id = o.id;
 	auto result = this->data.emplace(id, std::unique_ptr<Object>{&o});
 	return result.second;
@@ -21,34 +23,35 @@ bool ObjectManager::Insert(Object & o)
 
 bool ObjectManager::Remove(unsigned int id)
 {
+	std::unique_lock<std::mutex> lg{ this->lock };
 	if (1 == this->data.erase(id)) return true;
 	return false;
 }
 
-std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id)
+std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id, ObjectMap & map)
 {
 	std::unordered_set<unsigned int> nearList;
-	objManager.LockAndExec([id, &nearList](auto& map){
-		const Object* obj = map.at(id).get();
+	const Object* obj = map.at(id).get();
 
-		auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
-		for (auto s : nearSectors) {
-			std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
-				if (id == obj->id) return false;
+	auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
+	for (auto s : nearSectors) {
+		std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
+			if (id == obj->id) return false;
 
-				auto it = map.find(id);
-				if (it == map.end()) return false;
-				auto o = it->second.get();
-				std::unique_lock<std::mutex> lg{ o->lock };
-				return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
-			});
-		}
-	});
+			auto it = map.find(id);
+			if (it == map.end()) return false;
+			auto o = it->second.get();
+			std::unique_lock<std::mutex> lg{ o->lock };
+			return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
+		});
+	}
 	return nearList;
 }
 
-void UpdateViewList(unsigned int id, std::unordered_set<unsigned int>& nearList, ObjectMap& map)
+void UpdateViewList(unsigned int id, ObjectMap& map)
 {
+	auto nearList = objManager.GetNearList(id, map);
+
 	const bool amIPlayer = objManager.IsPlayer(id);
 	auto it = map.find(id);
 	if (map.end() == it) return;
@@ -140,23 +143,4 @@ void Object::Move(short dx, short dy)
 	this->y += dy;
 	this->x = max(0, min(this->x, BOARD_W - 1));
 	this->y = max(0, min(this->y, BOARD_H - 1));
-}
-
-lua_State * AI_NPC::InitLuaState(unsigned int id, const char* scriptName) noexcept
-{
-	auto state = luaL_newstate();
-	luaL_openlibs(state);
-	luaL_loadfile(state, scriptName);
-	if (lua_pcall(state, 0, 0, 0) != 0) {
-		display_error(state);
-		return state;
-	}
-	RegisterCFunctions(state);
-	lua_getglobal(state, "set_my_id");
-	lua_pushnumber(state, id);
-	if (lua_pcall(state, 1, 0, 0) != 0) {
-		display_error(state);
-		return state;
-	}
-	return state;
 }

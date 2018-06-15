@@ -21,26 +21,29 @@
   <ItemGroup>
     <ClInclude Include="..\Share\MsgReconstructor.h" />
     <ClInclude Include="..\Share\Shares.h" />
-    <ClInclude Include="AIQueue.h" />
     <ClInclude Include="CFunctionsForLua.h" />
     <ClInclude Include="DBQuery.h" />
     <ClInclude Include="DBQueue.h" />
+    <ClInclude Include="Event.h" />
     <ClInclude Include="Globals.h" />
     <ClInclude Include="GSServer.h" />
     <ClInclude Include="LuaFunctionCall.h" />
+    <ClInclude Include="LuaModule.h" />
     <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="SectorManager.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="TimerQueue.h" />
+    <ClInclude Include="typedef.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Share\Shares.cpp" />
-    <ClCompile Include="AIQueue.cpp" />
     <ClCompile Include="CFunctionsForLua.cpp" />
     <ClCompile Include="DBQuery.cpp" />
     <ClCompile Include="Globals.cpp" />
     <ClCompile Include="GSServer.cpp" />
     <ClCompile Include="LuaFunctionCall.cpp" />
+    <ClCompile Include="LuaModule.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="SectorManager.cpp" />
@@ -50,6 +53,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TimerQueue.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -128,8 +132,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>
-      </LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
@@ -182,6 +185,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
