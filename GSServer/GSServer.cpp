@@ -115,14 +115,20 @@ void WorkerThreadFunc()
 {
 	DWORD bytes;
 	ULONG_PTR key;
-	ExtOverlapped* ov;
+	ExtOverlappedBase* ov;
 	while (true) {
 		DWORD error{ 0 };
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
-		if (FALSE == isSuccess) error = GetLastError();
-		if (key >= MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
-		else if (ov->isRecv) { RecvCompletionCallback(error, bytes, ov); }
-		else { SendCompletionCallback(error, bytes, ov); }
+		if (!ov->isNetworkEvent) {
+			auto eov = std::unique_ptr<ExtOverlappedEvent>{ reinterpret_cast<ExtOverlappedEvent*>(ov) };
+			(*eov->msg)();
+		}
+		else {
+			auto eov = std::unique_ptr<ExtOverlappedNetwork>{ reinterpret_cast<ExtOverlappedNetwork*>(ov) };
+			if (FALSE == isSuccess) error = GetLastError();
+			else if (eov->isRecv) { RecvCompletionCallback(error, bytes, eov); }
+			else { SendCompletionCallback(error, bytes, eov); }
+		}
 	}
 }
 
@@ -132,13 +138,13 @@ void TimerThreadFunc()
 	time_point<high_resolution_clock, milliseconds> startTime, endTime;
 	while (true) {
 		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		while (!npcMsgQueue.isEmpty()) {
-			auto msg = npcMsgQueue.Top();
-			if (msg->time > startTime.time_since_epoch().count()) break;
+		while (!timerQueue.isEmpty()) {
+			auto msg = timerQueue.Top();
+			if (msg->GetTime() > startTime.time_since_epoch().count()) break;
 
-			auto nmsg = new ExtOverlappedNPC{ *msg };
-			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
-			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg->id, (LPWSAOVERLAPPED)nmsg);
+			auto eov = new ExtOverlappedEvent{ *msg };
+			timerQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
+			PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPWSAOVERLAPPED)eov);
 		}
 		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
 		auto elapsedTime = (endTime - startTime).count();
@@ -224,7 +230,9 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
 	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
 
-	objManager.UpdateViewList(clientId);
+	objManager.LockAndExec([clientId](auto& map) {
+		UpdateViewList(clientId, map);
+	});
 
 	networkManager.RecvNetworkMessage(newClient);
 }

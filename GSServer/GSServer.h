@@ -1,6 +1,8 @@
 #pragma once
 #include "../Share/Shares.h"
 
+constexpr unsigned int MAX_NPC = 2000;
+
 struct Client;
 
 void RemoveClient(Client* client);

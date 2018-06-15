@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "ObjectManager.h"
-#include "AIQueue.h"
 #include "NetworkManager.h"
 #include "LuaFunctionCall.h"
 #include "Globals.h"
@@ -11,23 +10,23 @@ void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg, ObjectMap& 
 	if (it == map.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
-	auto eov = new ExtOverlapped{ client.s, msg };
+	auto eov = new ExtOverlappedNetwork{ client.s, msg };
 	this->Send(*eov);
 }
 
 void NetworkManager::SendNetworkMessage(SOCKET sock, MsgBase & msg)
 {
-	auto eov = new ExtOverlapped{ sock, msg };
+	auto eov = new ExtOverlappedNetwork{ sock, msg };
 	this->Send(*eov);
 }
 
 void NetworkManager::RecvNetworkMessage(Client& c)
 {
-	auto eov = new ExtOverlapped{ c.s, c };
+	auto eov = new ExtOverlappedNetwork{ c.s, c };
 	this->Recv(*eov);
 }
 
-void NetworkManager::Send(ExtOverlapped & eov)
+void NetworkManager::Send(ExtOverlappedNetwork & eov)
 {
 	if (!eov.msg) return;
 	WSABUF wb;
@@ -40,7 +39,7 @@ void NetworkManager::Send(ExtOverlapped & eov)
 	if (error > 0) print_network_error(error);
 }
 
-void NetworkManager::Recv(ExtOverlapped & eov)
+void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 {
 	if (eov.client == nullptr) return;
 	WSABUF wb;
@@ -71,15 +70,17 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		auto nearList = objManager.GetNearList(client->id);
-		objManager.LockAndExec([this, &nearList](auto& map) {
-			UpdateViewList(this->client->id, nearList, map);
+		objManager.LockAndExec([this](auto& map) {
+			UpdateViewList(this->client->id, map);
+			auto nearList = objManager.GetNearList(this->client->id, map);
 			for (auto& id : nearList) {
 				if (ObjectManager::IsPlayer(id)) continue;
+				auto it = map.find(id);
+				if (map.end() == it) continue;
+				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
 
-				auto lock = ((AI_NPC*)map.at(id).get())->GetLuaState();
-
-				LFCPlayerMoved{ this->client->id, this->client->x, this->client->y }(lock);
+				LuaCall call( "player_moved", {(long long)this->client->id, (long long)this->client->x, (long long)this->client->y}, 0 );
+				npc.lua.Call(call, npc, map);
 			}
 		});
 	}
@@ -98,40 +99,40 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
 
-		objManager.UpdateViewList(this->client->id);
+		auto id = this->client->id;
+		objManager.LockAndExec([id](auto& map) {
+			UpdateViewList(id, map);
+		});
 	}
 	break;
 	}
 }
 
-void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
+void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov)
 {
-	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
-	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(eov.client);
+		RemoveClient(ov->client);
 		return;
 	}
 }
 
-void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
+void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov)
 {
-	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
-	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(eov.client);
+		RemoveClient(ov->client);
 		return;
 	}
 
 	// 하나의 소켓에 대한 Recv는 동시간에 1개 밖에 존재하지 않기 때문에 client에 lock을 할 필요 없음
-	eov.client->msgRecon.AddSize(transferred);
-	eov.client->msgRecon.Reconstruct(eov.s);
+	ov->client->msgRecon.AddSize(transferred);
+	ov->client->msgRecon.Reconstruct(ov->s);
 
-	networkManager.RecvNetworkMessage(*eov.client);
+	networkManager.RecvNetworkMessage(*ov->client);
 }
 
-ExtOverlappedNPC::ExtOverlappedNPC(const NPCMsg & msg) : msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
 
-ExtOverlappedNPC::ExtOverlappedNPC(std::unique_ptr<const NPCMsg>&& msg) : msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+ExtOverlappedEvent::ExtOverlappedEvent(const EventBase & msg) : ExtOverlappedBase{ false }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
+
+ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) : ExtOverlappedBase{ false }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
