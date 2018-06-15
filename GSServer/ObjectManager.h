@@ -22,8 +22,6 @@ struct AI_NPC : public Object {
 	AI_NPC(AI_NPC&& o) : Object{ std::move(o) }, lua{ o.lua } {}
 
 	LuaModule lua;
-private:
-	std::mutex luaLock;
 };
 
 struct Client : public Object {
