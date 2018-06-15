@@ -62,10 +62,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		auto& rMsg = *(const MsgInputMove*)(&msg);
 		auto oldX = client->x;
 		auto oldY = client->y;
-		{
-			std::unique_lock<std::mutex> lg{ client->lock };
-			client->Move(rMsg.dx, rMsg.dy);
-		}
+		client->Move(rMsg.dx, rMsg.dy);
 
 		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
 		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
@@ -79,7 +76,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 				if (map.end() == it) continue;
 				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
 
-				LuaCall call( "player_moved", {(long long)this->client->id, (long long)this->client->x, (long long)this->client->y}, 0 );
+				LuaCall call("player_moved", { (long long)this->client->id, (long long)this->client->x, (long long)this->client->y }, 0);
 				npc.lua.Call(call, npc, map);
 			}
 		});

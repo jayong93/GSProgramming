@@ -139,6 +139,7 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 
 void Object::Move(short dx, short dy)
 {
+	std::unique_lock<std::mutex> lg{ this->lock };
 	this->x += dx;
 	this->y += dy;
 	this->x = max(0, min(this->x, BOARD_W - 1));
