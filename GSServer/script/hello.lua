@@ -13,15 +13,15 @@ function player_moved( player_id, x, y )
 end
 
 function random_move(move_count)
-    if move_count > 0 then
-        local dx = c_get_random_num(-1, 1);
-        local dy = 0;
-        if dx == 0 then
-            while dy == 0 do
-                dy = c_get_random_num(-1, 1);
-            end
+    local dx = c_get_random_num(-1, 1);
+    local dy = 0;
+    if dx == 0 then
+        while dy == 0 do
+            dy = c_get_random_num(-1, 1);
         end
-        c_move(dx, dy);
+    end
+    c_move(dx, dy);
+    if move_count > 1 then
         c_lua_call(1, "random_move", move_count-1, 0);
     else
         c_send_message("Bye!");
