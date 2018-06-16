@@ -30,22 +30,9 @@ bool ObjectManager::Remove(unsigned int id)
 
 std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id, ObjectMap & map)
 {
-	std::unordered_set<unsigned int> nearList;
-	const Object* obj = map.at(id).get();
-
-	auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
-	for (auto s : nearSectors) {
-		std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
-			if (id == obj->id) return false;
-
-			auto it = map.find(id);
-			if (it == map.end()) return false;
-			auto o = it->second.get();
-			std::unique_lock<std::mutex> lg{ o->lock };
-			return (std::abs(obj->x - o->x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(obj->y - o->y) <= PLAYER_VIEW_SIZE / 2);
-		});
-	}
-	return nearList;
+	return ObjectManager::GetNearList(id, map, [](const Object& me, const Object& other) {
+		return (std::abs(me.x - other.x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(me.y - other.y) <= PLAYER_VIEW_SIZE / 2);
+	});
 }
 
 void UpdateViewList(unsigned int id, ObjectMap& map)

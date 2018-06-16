@@ -18,7 +18,7 @@ struct Object {
 };
 
 struct AI_NPC : public Object {
-	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : Object{ id, x, y, color }, lua{id, scriptName} {};
+	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : Object{ id, x, y, color }, lua{ id, scriptName } {};
 
 	LuaModule lua;
 };
@@ -51,7 +51,7 @@ public:
 	bool Insert(std::unique_ptr<Object>&& ptr);
 	bool Insert(Object& o);
 	bool Remove(unsigned int id);
-	
+
 	template <typename Func>
 	bool Update(unsigned int id, Func func) {
 		std::unique_lock<std::mutex> lg{ lock };
@@ -67,8 +67,28 @@ public:
 	}
 
 	static std::unordered_set<unsigned int> GetNearList(unsigned int id, ObjectMap& map);
+	template <typename Pred>
+	static std::unordered_set<unsigned int> GetNearList(unsigned int id, ObjectMap& map, Pred pred) {
+		std::unordered_set<unsigned int> nearList;
+		const Object* obj = map.at(id).get();
+
+		auto nearSectors = sectorManager.GetNearSectors(sectorManager.PositionToSectorIndex(obj->x, obj->y));
+		for (auto s : nearSectors) {
+			std::copy_if(s.begin(), s.end(), std::inserter(nearList, nearList.end()), [&](unsigned int id) {
+				if (id == obj->id) return false;
+
+				auto it = map.find(id);
+				if (it == map.end()) return false;
+				const auto o = it->second.get();
+				std::unique_lock<std::mutex> lg{ o->lock };
+
+				return pred(*obj, *o);
+			});
+		}
+		return nearList;
+	}
 	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
-	
+
 	ObjectManager(const ObjectManager&) = delete;
 	ObjectManager& operator=(const ObjectManager&) = delete;
 
