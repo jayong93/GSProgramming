@@ -1,7 +1,6 @@
 #pragma once
 #include "../Share/Shares.h"
-
-struct Client;
+#include "typedef.h"
 
 struct ExtOverlapped {
 	WSAOVERLAPPED ov;
@@ -20,7 +19,6 @@ struct ExtOverlapped {
 
 class NetworkManager {
 public:
-	void SendNetworkMessage(int id, MsgBase& msg);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
 	void RecvNetworkMessage(Client& sock);
 private:
