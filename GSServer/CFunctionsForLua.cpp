@@ -5,6 +5,7 @@
 #include "LuaFunctionCall.h"
 #include "Event.h"
 #include "TimerQueue.h"
+#include "NPC.h"
 #include "Globals.h"
 
 int CFSendMessage::operator()(lua_State * L)

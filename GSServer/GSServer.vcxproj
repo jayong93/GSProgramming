@@ -30,6 +30,8 @@
     <ClInclude Include="LuaFunctionCall.h" />
     <ClInclude Include="LuaModule.h" />
     <ClInclude Include="NetworkManager.h" />
+    <ClInclude Include="NPC.h" />
+    <ClInclude Include="NPCState.h" />
     <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="SectorManager.h" />
     <ClInclude Include="stdafx.h" />
@@ -45,6 +47,8 @@
     <ClCompile Include="LuaFunctionCall.cpp" />
     <ClCompile Include="LuaModule.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
+    <ClCompile Include="NPC.cpp" />
+    <ClCompile Include="NPCState.cpp" />
     <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="SectorManager.cpp" />
     <ClCompile Include="stdafx.cpp">

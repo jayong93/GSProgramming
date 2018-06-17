@@ -2,7 +2,6 @@
 #include "../Share/Shares.h"
 #include "typedef.h"
 #include "NetworkManager.h"
-#include "LuaModule.h"
 
 class Object {
 	std::mutex lock;
@@ -26,13 +25,6 @@ public:
 		ULock{ lock };
 		return func(viewList);
 	}
-};
-
-class AI_NPC : public Object {
-public:
-	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : Object{ id, x, y, color }, lua{ id, scriptName } {};
-
-	LuaModule lua;
 };
 
 class Client : public Object {

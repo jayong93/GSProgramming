@@ -2,6 +2,7 @@
 #include "ObjectManager.h"
 #include "NetworkManager.h"
 #include "LuaFunctionCall.h"
+#include "NPC.h"
 #include "Globals.h"
 #include <cassert>
 
@@ -70,17 +71,16 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
 		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
-		objManager.Access([clientId{ id }, newX, newY](auto& map) {
+		objManager.Access([client{ this->client }, clientId{ id }, newX, newY](auto& map) {
 			UpdateViewList(clientId, map);
 			auto nearList = objManager.GetNearList(clientId, map);
 			for (auto& id : nearList) {
 				if (ObjectManager::IsPlayer(id)) continue;
 				auto it = map.find(id);
 				if (map.end() == it) continue;
-				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
+				auto& npc = *reinterpret_cast<NPC*>(it->second.get());
 
-				LuaCall call("player_moved", { (long long)clientId, (long long)newX, (long long)newY }, 0);
-				npc.lua.Call(call, npc, map);
+				npc.PlayerMove(*client);
 			}
 		});
 	}

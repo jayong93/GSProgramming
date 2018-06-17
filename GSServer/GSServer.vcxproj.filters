@@ -84,6 +84,12 @@
     <ClInclude Include="typedef.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="NPCState.h">
+      <Filter>소스 파일\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="NPC.h">
+      <Filter>소스 파일\AI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GSServer.cpp">
@@ -120,6 +126,12 @@
       <Filter>소스 파일\Timer</Filter>
     </ClCompile>
     <ClCompile Include="LuaModule.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="NPCState.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="NPC.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
