@@ -1,7 +1,7 @@
 #pragma once
 #include "MsgReconstructor.h"
 
-enum class MsgType { NONE, CS_INPUT_MOVE, CS_TELEPORT, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT};
+enum class MsgType { NONE, CS_INPUT_MOVE, CS_TELEPORT, SC_GIVE_ID, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT, SC_SET_HP, SC_SET_MAX_HP};
 enum class ConnectionType {NORMAL, HOTSPOT};
 enum class ObjectType {OBJECT, PLAYER, MELEE, RANGE};
 
@@ -77,5 +77,19 @@ struct MsgChat : public MsgBase {
 	MsgChat(unsigned int from, const wchar_t* msg) : MsgBase{ sizeof(MsgChat), MsgType::SC_CHAT }, from{ from } {
 		lstrcpyn(this->msg, msg, MAX_CHAT_LEN);
 	}
+};
+
+struct MsgSetHP : public MsgBase {
+	unsigned int id;
+	int hp;
+
+	MsgSetHP(unsigned int id, int hp) : MsgBase{ sizeof(MsgSetHP), MsgType::SC_SET_HP }, id{ id }, hp{ hp } {}
+};
+
+struct MsgSetMaxHP : public MsgBase {
+	unsigned int id;
+	int maxHP;
+
+	MsgSetMaxHP(unsigned int id, int maxHP) : MsgBase{ sizeof(MsgSetMaxHP), MsgType::SC_SET_MAX_HP }, id{ id }, maxHP{ maxHP } {}
 };
 #pragma pack(pop)

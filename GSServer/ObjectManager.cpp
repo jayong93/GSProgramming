@@ -149,3 +149,26 @@ void Object::SetPos(short x, short y) {
 	}
 	sectorManager.UpdateSector(this->id, oldX, oldY, newX, newY);
 }
+
+void Object::SendPutMessage(SOCKET s)
+{
+	MsgBase* msg{ nullptr };
+	{
+		ULock lg{ lock };
+		msg = new MsgPutObject{ id, x, y, color, type };
+	}
+	networkManager.SendNetworkMessage(s, *msg);
+}
+
+void HPObject::SendPutMessage(SOCKET s)
+{
+	Object::SendPutMessage(s);
+	MsgBase* msg{ nullptr }, *maxMsg{ nullptr };
+	{
+		ULock lg{ lock };
+		msg = new MsgSetHP{ this->GetID(), hp };
+		maxMsg = new MsgSetMaxHP{ this->GetID(), maxHP };
+	}
+	networkManager.SendNetworkMessage(s, *msg);
+	networkManager.SendNetworkMessage(s, *maxMsg);
+}

@@ -9,33 +9,46 @@ struct Chat {
 	bool isValid{ false };
 };
 
+// 클라이언트에서 Object에 대한 접근은 모두 objectManager에서 이루어지기 때문에 object에는 lock이 필요 없음.
 struct Object {
 private:
 	unsigned int id = 0;
 	short x = 0, y = 0;
 	COLORREF color = RGB(255, 255, 255);
 	Chat chat;
+	int hp = 0;
+	int maxHP = 0;
 	ObjectType type;
-	std::mutex lock;
 
 public:
 	Object() {}
 	Object(unsigned int id, int x, int y, const Color& color, ObjectType type) : id{ id }, x(x), y(y), color{ RGB(color.r, color.g, color.b) }, type{ type } {}
 
-	void SetPos(short x, short y) { std::unique_lock<std::mutex> lg{ lock }; this->x = x; this->y = y; }
-	auto GetPos() { std::unique_lock<std::mutex> lg{ lock }; return std::make_tuple(x, y); }
+	void SetPos(short x, short y) { this->x = x; this->y = y; }
+	auto GetPos() { return std::make_tuple(x, y); }
 	auto GetColor() const { return color; }
 	auto GetID() const { return id; }
 	auto GetType() const { return type; }
+	auto GetHP() const { return hp; }
+	void SetHP(int hp) { this->hp = hp; }
+	auto GetMaxHP() const { return maxHP; }
+	void SetMaxHP(int maxHP) { this->maxHP = maxHP; }
+	auto GetRelativeRect(const int leftTopX, const int leftTopY) const {
+		RECT rect;
+		const auto relativeX = x - leftTopX;
+		const auto relativeY = y - leftTopY;
+		rect.left = relativeX * CELL_W;
+		rect.right = (relativeX + 1) * CELL_W;
+		rect.top = relativeY * CELL_H;
+		rect.bottom = (relativeY + 1) * CELL_H;
+		return rect;
+	}
 
 	template<typename Func>
 	auto AccessToChat(Func func) {
-		std::unique_lock<std::mutex> lg{ lock };
 		return func(chat);
 	}
 };
-
-using NPC = Object;
 
 struct Client {
 private:
