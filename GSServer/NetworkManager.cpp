@@ -78,9 +78,9 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 				if (ObjectManager::IsPlayer(id)) continue;
 				auto it = map.find(id);
 				if (map.end() == it) continue;
-				auto& npc = *reinterpret_cast<NPC*>(it->second.get());
+				auto npc = (NPC*)(it->second.get());
 
-				npc.PlayerMove(*client);
+				npc->PlayerMove(*client);
 			}
 		});
 	}
