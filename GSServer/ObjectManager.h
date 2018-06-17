@@ -63,6 +63,7 @@ public:
 		auto it = data.find(id);
 		if (data.end() == it) return false;
 		func(*it->second);
+		return true;
 	}
 
 	template <typename Func>
