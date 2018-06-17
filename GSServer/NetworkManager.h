@@ -7,17 +7,17 @@ struct ExtOverlappedBase {
 	WSAOVERLAPPED ov;
 	bool isNetworkEvent;
 
-	ExtOverlappedBase(bool isNetwork) : isNetworkEvent{ isNetwork } {}
+	ExtOverlappedBase(bool isNetwork) : isNetworkEvent{ isNetwork } { ZeroMemory(&ov, sizeof(ov)); }
 };
 
 struct ExtOverlappedNetwork : public ExtOverlappedBase {
 	SOCKET s;
 	Client* client;
-	std::unique_ptr<MsgBase> msg; // 동일한 메시지를 Broadcasting하는 경우, shared_ptr로 공유해서 사용
+	std::unique_ptr<MsgBase> msg;
 	bool isRecv{ false };
 
-	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
-	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ &msg } {}
+	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ std::move(msg) } {}
 	ExtOverlappedNetwork(Client& client);
 
 	ExtOverlappedNetwork(const ExtOverlappedNetwork&) = delete;

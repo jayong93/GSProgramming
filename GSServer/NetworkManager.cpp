@@ -130,8 +130,8 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtO
 }
 
 
-ExtOverlappedEvent::ExtOverlappedEvent(const EventBase & msg) : ExtOverlappedBase{ false }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
+ExtOverlappedEvent::ExtOverlappedEvent(const EventBase & msg) : ExtOverlappedBase{ false }, msg{ &msg } {}
 
-ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) : ExtOverlappedBase{ false }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) : ExtOverlappedBase{ false }, msg{ std::move(msg) } {}
 
-ExtOverlappedNetwork::ExtOverlappedNetwork(Client & client) : ExtOverlappedBase{ true }, s{ client.GetSocket() }, client{ &client } { ZeroMemory(&ov, sizeof(ov)); }
+ExtOverlappedNetwork::ExtOverlappedNetwork(Client & client) : ExtOverlappedBase{ true }, s{ client.GetSocket() }, client{ &client } {}
