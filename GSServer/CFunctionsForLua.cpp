@@ -107,10 +107,7 @@ int CFMove::operator()(lua_State * L)
 	short dx = luaL_checkinteger(L, 1);
 	short dy = luaL_checkinteger(L, 2);
 
-	auto[oldX, oldY] = this->obj.GetPos();
 	this->obj.Move(dx, dy);
-	auto[newX, newY] = this->obj.GetPos();
-	sectorManager.UpdateSector(this->obj.GetID(), oldX, oldY, newX, newY);
 	UpdateViewList(this->obj.GetID(), this->map);
 	return 0;
 }

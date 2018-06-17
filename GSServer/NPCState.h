@@ -1,32 +1,18 @@
 #pragma once
 #include "typedef.h"
 
-class NPCStateBase {
-public:
-	NPCStateBase(NPC& npc);
-	virtual void PlayerMove(Client& player) = 0;
-	virtual void PlayerLeave(Client& player) = 0;
-	virtual void Attacked(Client& player) = 0;
-	virtual void Update() = 0;
-
-protected:
-	NPC & owner;
+struct MeleeIdle {
+	void PlayerMove(NPC& npc, Client& player, ObjectMap& map);
+	void PlayerLeave(NPC& npc, Client& player, ObjectMap& map);
+	void Attacked(NPC& npc, Client& player, ObjectMap& map);
+	void Update(NPC& npc, ObjectMap& map);
 };
 
-class MeleeIdle : public NPCStateBase {
-public:
-	MeleeIdle(NPC& npc);
-	virtual void PlayerMove(Client& player);
-	virtual void PlayerLeave(Client& player);
-	virtual void Attacked(Client& player);
-	virtual void Update();
-};
-
-class MeleeChase : public NPCStateBase {
-public:
-	MeleeChase(NPC& npc);
-	virtual void PlayerMove(Client& player);
-	virtual void PlayerLeave(Client& player);
-	virtual void Attacked(Client& player);
-	virtual void Update();
+struct MeleeChase {
+	MeleeChase(unsigned int target);
+	unsigned int target;
+	void PlayerMove(NPC& npc, Client& player, ObjectMap& map);
+	void PlayerLeave(NPC& npc, Client& player, ObjectMap& map);
+	void Attacked(NPC& npc, Client& player, ObjectMap& map);
+	void Update(NPC& npc, ObjectMap& map);
 };

@@ -24,7 +24,7 @@ int main() {
 
 	for (auto i = 0; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
-		auto npc = std::unique_ptr<Object>{ new MeleeMonster(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen))) };
+		auto npc = std::unique_ptr<Object>{ new MeleeMonster(id, posRange(rndGen), posRange(rndGen), Color(255,0,0)) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));

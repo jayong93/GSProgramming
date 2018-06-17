@@ -15,7 +15,7 @@ public:
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } { o.id = 0; }
 
 	void Move(short dx, short dy);
-	void SetPos(short x, short y) { ULock{ lock }; this->x = x; this->y = y; }
+	void SetPos(short x, short y);
 	auto GetID() const { return id; }
 	auto GetPos() { ULock{ lock }; return std::make_tuple( x,y ); }
 	auto& GetColor() const { return color; }
@@ -62,6 +62,11 @@ public:
 	auto Access(Func func) {
 		std::unique_lock<std::mutex> lg{ lock };
 		return func(data);
+	}
+
+	template <typename Func>
+	bool AccessWithValue(unsigned int id, Func func) {
+		return Update(id, [&data{ this->data }, &func](auto& obj) {func(obj, data); });
 	}
 
 	static std::unordered_set<unsigned int> GetNearList(unsigned int id, ObjectMap& map);

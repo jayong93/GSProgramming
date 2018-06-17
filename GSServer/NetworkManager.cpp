@@ -63,37 +63,24 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgType::CS_INPUT_MOVE:
 	{
 		auto& rMsg = *(const MsgInputMove*)(&msg);
-		const auto[oldX, oldY] = client->GetPos();
 		client->Move(rMsg.dx, rMsg.dy);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
 		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
-		objManager.Access([client{ this->client }, clientId{ id }, newX, newY](auto& map) {
+		objManager.Access([client{ this->client }, clientId{ id }](auto& map) {
 			UpdateViewList(clientId, map);
-			auto nearList = objManager.GetNearList(clientId, map);
-			for (auto& id : nearList) {
-				if (ObjectManager::IsPlayer(id)) continue;
-				auto it = map.find(id);
-				if (map.end() == it) continue;
-				auto npc = (NPC*)(it->second.get());
-
-				npc->PlayerMove(*client);
-			}
 		});
 	}
 	break;
 	case MsgType::CS_TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
-		const auto[oldX, oldY] = client->GetPos();
 		client->SetPos(rMsg.x, rMsg.y);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
 		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
 		objManager.Access([id](auto& map) {
