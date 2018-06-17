@@ -8,7 +8,7 @@
 bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
 {
 	std::unique_lock<std::mutex> lg{ this->lock };
-	auto id = ptr->id;
+	auto id = ptr->GetID();
 	auto result = this->data.emplace(id, std::move(ptr));
 	return result.second;
 }
@@ -16,7 +16,7 @@ bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
 bool ObjectManager::Insert(Object & o)
 {
 	std::unique_lock<std::mutex> lg{ this->lock };
-	auto id = o.id;
+	auto id = o.GetID();
 	auto result = this->data.emplace(id, std::unique_ptr<Object>{&o});
 	return result.second;
 }
@@ -30,8 +30,10 @@ bool ObjectManager::Remove(unsigned int id)
 
 std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id, ObjectMap & map)
 {
-	return ObjectManager::GetNearList(id, map, [](const Object& me, const Object& other) {
-		return (std::abs(me.x - other.x) <= PLAYER_VIEW_SIZE / 2) && (std::abs(me.y - other.y) <= PLAYER_VIEW_SIZE / 2);
+	return ObjectManager::GetNearList(id, map, [](Object& me, Object& other) {
+		auto[myX, myY] = me.GetPos();
+		auto[otherX, otherY] = other.GetPos();
+		return (std::abs(myX - otherX) <= PLAYER_VIEW_SIZE / 2) && (std::abs(myY - otherY) <= PLAYER_VIEW_SIZE / 2);
 	});
 }
 
@@ -53,62 +55,44 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 		if (it == map.end()) continue;
 		auto& player = *it->second;
 
-		bool isInserted{ false };
+		const auto isInserted = me.AccessToViewList([playerId](auto& viewList) {
+			return viewList.insert(playerId).second;
+		});
+
+		if (isInserted && amIPlayer) {
+			auto[x, y] = player.GetPos();
+			networkManager.SendNetworkMessage(((Client&)me).GetSocket(), *new MsgPutObject{ player.GetID(), x, y, player.GetColor() });
+		}
+
+		const auto amIInserted = player.AccessToViewList([id{ me.GetID() }](auto& viewList){
+			return viewList.insert(id).second;
+		});
+
+		if (isPlayer)
 		{
-			std::unique_lock<std::mutex> myLG{ me.lock };
-			auto result = me.viewList.insert(playerId);
-			isInserted = result.second;
-		}
-
-		std::unique_lock<std::mutex> playerLG{ player.lock };
-		int retval;
-		if (isInserted) {
-			if (amIPlayer)
-			{
-				networkManager.SendNetworkMessage(((Client&)me).s, *new MsgPutObject{ player.id, player.x, player.y, player.color });
+			if (!amIInserted) {
+				auto[x, y] = me.GetPos();
+				networkManager.SendNetworkMessage(((Client&)player).GetSocket(), *new MsgMoveObject{ me.GetID(), x, y });
 			}
-
-			auto result = player.viewList.insert(me.id);
-			const bool amIInserted = result.second;
-			if (isPlayer)
-			{
-				if (!amIInserted) {
-					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgMoveObject{ me.id, me.x, me.y });
-				}
-				else {
-					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgPutObject{ me.id, me.x, me.y, me.color });
-				}
-			}
-		}
-		else {
-			auto result = player.viewList.insert(me.id);
-			if (isPlayer)
-			{
-				const bool amIInserted = result.second;
-				if (!amIInserted) {
-					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgMoveObject{ me.id, me.x, me.y });
-				}
-				else {
-					networkManager.SendNetworkMessage(((Client&)player).s, *new MsgPutObject{ me.id, me.x, me.y, me.color });
-				}
+			else {
+				auto[x, y] = me.GetPos();
+				networkManager.SendNetworkMessage(((Client&)player).GetSocket(), *new MsgPutObject{ me.GetID(), x, y, me.GetColor() });
 			}
 		}
 	}
 
 	std::vector<unsigned int> removedList;
-	{
-		std::unique_lock<std::mutex> lg{ me.lock };
-		std::copy_if(me.viewList.begin(), me.viewList.end(), std::back_inserter(removedList), [&](auto id) {
+	me.AccessToViewList([&removedList, &nearList](auto& viewList) {
+		std::copy_if(viewList.begin(), viewList.end(), std::back_inserter(removedList), [&](auto id) {
 			return nearList.find(id) == nearList.end();
 		});
-		for (auto id : removedList) me.viewList.erase(id);
-	}
+		for (auto id : removedList) viewList.erase(id);
+	});
 
 	for (auto& id : removedList) {
-		int retval;
 		if (amIPlayer)
 		{
-			networkManager.SendNetworkMessage(((Client&)me).s, *new MsgRemoveObject{ id });
+			networkManager.SendNetworkMessage(((Client&)me).GetSocket(), *new MsgRemoveObject{ id });
 		}
 
 		const bool isPlayer = objManager.IsPlayer(id);
@@ -116,17 +100,18 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 		if (it == map.end()) continue;
 		auto player = it->second.get();
 
-		std::unique_lock<std::mutex> lg{ player->lock };
-		retval = player->viewList.erase(me.id);
-		if (isPlayer && 1 == retval) {
-			networkManager.SendNetworkMessage(((Client*)player)->s, *new MsgRemoveObject{ me.id });
-		}
+		player->AccessToViewList([id{ me.GetID() }, isPlayer, player](auto& viewList) {
+			auto retval = viewList.erase(id);
+			if (isPlayer && 1 == retval) {
+				networkManager.SendNetworkMessage(((Client*)player)->GetSocket(), *new MsgRemoveObject{ id });
+			}
+		});
 	}
 }
 
 void Object::Move(short dx, short dy)
 {
-	std::unique_lock<std::mutex> lg{ this->lock };
+	ULock lg{ this->lock };
 	this->x += dx;
 	this->y += dy;
 	this->x = max(0, min(this->x, BOARD_W - 1));

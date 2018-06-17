@@ -1,10 +1,7 @@
 #pragma once
 #include "../Share/Shares.h"
 #include "Event.h"
-
-struct Client;
-struct Object;
-using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
+#include "typedef.h"
 
 struct ExtOverlappedBase {
 	WSAOVERLAPPED ov;
@@ -21,7 +18,7 @@ struct ExtOverlappedNetwork : public ExtOverlappedBase {
 
 	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
 	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
-	ExtOverlappedNetwork(SOCKET s, Client& client) : ExtOverlappedBase{ true }, s{ s }, client{ &client } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNetwork(Client& client);
 
 	ExtOverlappedNetwork(const ExtOverlappedNetwork&) = delete;
 	ExtOverlappedNetwork& operator=(const ExtOverlappedNetwork&) = delete;

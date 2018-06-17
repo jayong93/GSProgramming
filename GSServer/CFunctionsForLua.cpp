@@ -17,7 +17,7 @@ int CFSendMessage::operator()(lua_State * L)
 	size_t converted;
 	mbstowcs_s(&converted, &msg[0], msg.size(), mbMsg, msgLen);
 
-	auto myId = this->obj.id;
+	auto myId = this->obj.GetID();
 	auto nearList = objManager.GetNearList(myId, this->map);
 	for (auto& id : nearList) {
 		if (objManager.IsPlayer(id))
@@ -28,8 +28,9 @@ int CFSendMessage::operator()(lua_State * L)
 
 int CFGetMyPos::operator()(lua_State * L)
 {
-	lua_pushnumber(L, this->obj.x);
-	lua_pushnumber(L, this->obj.y);
+	auto[x, y] = this->obj.GetPos();
+	lua_pushnumber(L, x);
+	lua_pushnumber(L, y);
 	return 2;
 }
 
@@ -74,10 +75,10 @@ int CFLuaCallEvent::operator()(lua_State * L)
 	}
 
 	LuaCall callObj{ funcName, std::move(args), returnNum };
-	const auto id = this->obj.id;
+	const auto id = this->obj.GetID();
 
 	auto eventBody = [call = std::move(callObj), id]() {
-		objManager.LockAndExec([&call, id](auto& map) {
+		objManager.Access([&call, id](auto& map) {
 			auto it = map.find(id);
 			if (map.end() == it) return;
 			auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
@@ -105,11 +106,11 @@ int CFMove::operator()(lua_State * L)
 	short dx = luaL_checkinteger(L, 1);
 	short dy = luaL_checkinteger(L, 2);
 
-	auto oldX = this->obj.x;
-	auto oldY = this->obj.y;
+	auto[oldX, oldY] = this->obj.GetPos();
 	this->obj.Move(dx, dy);
-	sectorManager.UpdateSector(this->obj.id, oldX, oldY, this->obj.x, this->obj.y);
-	UpdateViewList(this->obj.id, this->map);
+	auto[newX, newY] = this->obj.GetPos();
+	sectorManager.UpdateSector(this->obj.GetID(), oldX, oldY, newX, newY);
+	UpdateViewList(this->obj.GetID(), this->map);
 	return 0;
 }
 

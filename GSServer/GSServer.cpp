@@ -24,7 +24,8 @@ int main() {
 	for (auto i = 0; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
 		auto npc = std::unique_ptr<Object>{ new AI_NPC(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), "script/hello.lua") };
-		sectorManager.AddToSector(npc->id, npc->x, npc->y);
+		auto[x, y] = npc->GetPos();
+		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));
 	}
 
@@ -46,30 +47,34 @@ int main() {
 void RemoveClient(Client* client)
 {
 	if (nullptr == client) return;
-	closesocket(client->s);
+	closesocket(client->GetSocket());
 	std::unique_ptr<Object> localClient;
-	objManager.LockAndExec([client, &localClient](auto& map) {
-		auto it = map.find(client->id);
+	objManager.Access([client, &localClient](auto& map) {
+		auto it = map.find(client->GetID());
 		if (map.end() == it) return;
 		localClient.swap(it->second);
 		map.erase(it);
 	});
 	if (!localClient) return;
 
-	objManager.LockAndExec([client](auto& map) {
-		for (auto& id : client->viewList) {
-			auto it = map.find(id);
-			if (it == map.end()) continue;
-			auto& player = *reinterpret_cast<Client*>(it->second.get());
-			std::unique_lock<std::mutex> plg{ player.lock };
-			const auto removedCount = player.viewList.erase(client->id);
-			if (removedCount == 1) {
-				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });
+	objManager.Access([client](auto& map) {
+		client->AccessToViewList([client, &map](auto& viewList) {
+			for (auto& id : viewList) {
+				auto it = map.find(id);
+				if (it == map.end()) continue;
+				const auto removedCount = viewList.erase(id);
+				if (objManager.IsPlayer(id)) {
+					auto& player = *reinterpret_cast<Client*>(it->second.get());
+					if (removedCount == 1) {
+						networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
+					}
+				}
 			}
-		}
+		});
 	});
-	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
-	printf_s("client #%d has disconnected\n", localClient->id);
+	auto[x, y] = client->GetPos();
+	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->GetGameID(), x, y });
+	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
 
 void AcceptThreadFunc()
@@ -210,7 +215,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
 
-	objManager.LockAndExec([sock, clientId, &newClientPtr](auto& map) {
+	objManager.Access([sock, clientId, &newClientPtr](auto& map) {
 		// 이미 NPC들이 들어가있는 것을 감안해야 함.
 		if (map.size() - MAX_NPC > MAX_PLAYER) {
 			closesocket(sock);
@@ -219,14 +224,15 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 		map.emplace(clientId, std::move(newClientPtr));
 	});
 
-	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
+	auto[x, y] = newClient.GetPos();
+	sectorManager.AddToSector(clientId, x, y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
-	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
-	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgPutObject{ clientId, x, y, newClient.GetColor() });
 
-	objManager.LockAndExec([clientId](auto& map) {
+	objManager.Access([clientId](auto& map) {
 		UpdateViewList(clientId, map);
 	});
 

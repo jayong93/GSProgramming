@@ -1,9 +1,8 @@
 #pragma once
 #include "../Share/Shares.h"
+#include "typedef.h"
 
 constexpr unsigned int MAX_NPC = 2000;
-
-struct Client;
 
 void RemoveClient(Client* client);
 void AcceptThreadFunc();
