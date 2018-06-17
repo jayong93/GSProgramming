@@ -19,13 +19,12 @@ struct MeleeIdle {
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
 		auto next = HardCoded::State{ MeleeChase{player.GetID()} };
 		npc.state = next;
-		auto eov = new ExtOverlappedEvent{ MakeEvent([id{npc.GetID()}](){
+		PostEvent([id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
 				npc.Update(map);
-	});
-	}) };
-		PostQueuedCompletionStatus(iocpObject, 0, 0, (LPOVERLAPPED)eov);
+			});
+		});
 	}
 	template<typename HardCoded>
 	void PlayerLeave(HardCoded& npc, Client& player, ObjectMap& map) {}
@@ -58,7 +57,7 @@ struct MeleeChase {
 		const auto[myX, myY] = npc.GetPos();
 		if ((abs(px - myX) + abs(py - myY)) <= 1) {
 			const auto pHP = player.AddHP(-10);
-			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{player.GetID(), pHP});
+			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{ player.GetID(), pHP });
 			player.AccessToViewList([&map, &player, pHP](auto& viewList) {
 				for (auto id : viewList) {
 					if (objManager.IsPlayer(id)) {
@@ -80,19 +79,17 @@ struct MeleeChase {
 			const auto xOffset = px - myX;
 			const auto yOffset = py - myY;
 			if (abs(xOffset) < abs(yOffset)) {
-				auto eov = new ExtOverlappedEvent{ MakeEvent(body(npc.GetID(), 0, (yOffset < 0) ? -1 : 1)) };
-				PostQueuedCompletionStatus(iocpObject, 0, 0, (LPOVERLAPPED)eov);
+				PostEvent(body(npc.GetID(), 0, (yOffset < 0) ? -1 : 1));
 			}
 			else {
-				auto eov = new ExtOverlappedEvent{ MakeEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0)) };
-				PostQueuedCompletionStatus(iocpObject, 0, 0, (LPOVERLAPPED)eov);
+				PostEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0));
 			}
 		}
-		timerQueue.Push(MakeTimerEvent([id{ npc.GetID() }](){
+		PostTimerEvent(1000, [id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
 				npc.Update(map);
 			});
-		}, 1000));
+		});
 	}
 };

@@ -89,14 +89,11 @@ int CFLuaCallEvent::operator()(lua_State * L)
 
 	// 바로 실행
 	if (delay <= 0) {
-		auto ev = MakeEvent(std::move(eventBody));
-		auto eov = new ExtOverlappedEvent{ std::move(ev) };
-		PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPOVERLAPPED)eov);
+		PostEvent(std::move(eventBody));
 	}
 	// 타이머 적용
 	else {
-		auto tev = MakeTimerEvent(std::move(eventBody), timePoint, delayMilli);
-		timerQueue.Push(std::move(tev));
+		PostTimerEvent(timePoint, delayMilli, std::move(eventBody));
 	}
 
 	return 0;

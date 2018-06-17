@@ -71,3 +71,13 @@ public:
 
 	static constexpr int interval = 500;
 };
+
+template<typename Call>
+void PostTimerEvent(long long delay, Call&& call) {
+	timerQueue.Push(MakeTimerEvent(std::forward<Call>(call), delay));
+}
+
+template<typename Call>
+void PostTimerEvent(TimePoint& timePoint, long long delay, Call&& call) {
+	timerQueue.Push(MakeTimerEvent(std::forward<Call>(call), timePoint, delay));
+}
