@@ -53,18 +53,20 @@ void RemoveClient(Client* client)
 		map.erase(it);
 	});
 	if (!localClient) return;
+	const auto[x, y] = client->GetPos();
+	sectorManager.RemoveFromSector(client->GetID(), x, y);
 
 	objManager.Access([client](auto& map) {
 		client->AccessToViewList([client, &map](auto& viewList) {
 			for (auto& id : viewList) {
 				auto it = map.find(id);
 				if (it == map.end()) continue;
-				const auto removedCount = viewList.erase(id);
-				if (objManager.IsPlayer(id)) {
+				const auto removedCount = it->second->AccessToViewList([id{ client->GetID() }](auto& viewList){
+					return viewList.erase(id);
+				});
+				if (removedCount == 1 && objManager.IsPlayer(id)) {
 					auto& player = *reinterpret_cast<Client*>(it->second.get());
-					if (removedCount == 1) {
-						networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
-					}
+					networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
 				}
 			}
 		});
