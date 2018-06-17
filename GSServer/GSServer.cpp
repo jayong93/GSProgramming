@@ -56,23 +56,24 @@ void RemoveClient(Client* client)
 		map.erase(it);
 	});
 	if (!localClient) return;
+	const auto[x, y] = client->GetPos();
+	sectorManager.RemoveFromSector(client->GetID(), x, y);
 
 	objManager.Access([client](auto& map) {
 		client->AccessToViewList([client, &map](auto& viewList) {
 			for (auto& id : viewList) {
 				auto it = map.find(id);
 				if (it == map.end()) continue;
-				const auto removedCount = viewList.erase(id);
-				if (objManager.IsPlayer(id)) {
+				const auto removedCount = it->second->AccessToViewList([id{ client->GetID() }](auto& viewList){
+					return viewList.erase(id);
+				});
+				if (removedCount == 1 && objManager.IsPlayer(id)) {
 					auto& player = *reinterpret_cast<Client*>(it->second.get());
-					if (removedCount == 1) {
-						networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
-					}
+					networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
 				}
 			}
 		});
 	});
-	auto[x, y] = client->GetPos();
 	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->GetGameID(), x, y });
 	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
@@ -99,12 +100,13 @@ void AcceptThreadFunc()
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
 
-		TCHAR name[MAX_GAME_ID_LEN + 1];
+		TCHAR name[MAX_GAME_ID_LEN + 1] = { 0, };
 		int retval{ 0 };
 		do {
 			retval += recv(clientSock, (char*)name, sizeof(name), 0);
 		} while (retval < sizeof(name));
 
+		if (retval == 0 || lstrlen(name) == 0) continue;
 		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
 			AddNewClient(clientSock, name, xPos, yPos);
 		};

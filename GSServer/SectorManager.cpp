@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "SectorManager.h"
 #include "../Share/Shares.h"
+#include "typedef.h"
 
 SectorManager::SectorManager()
 {
@@ -67,5 +68,21 @@ bool SectorManager::AddToSector(unsigned int id, unsigned int x, unsigned int y)
 	if (it != sector.end()) return false;
 
 	sector.emplace(id);
+	return true;
+}
+
+bool SectorManager::RemoveFromSector(unsigned int id, unsigned int x, unsigned int y)
+{
+	ULock lg{ this->lock };
+	auto idx = this->PositionToSectorIndex(x, y);
+	if (idx < 0 || idx >= sectorList.size()) return false;
+
+	auto& sector = sectorList[idx];
+
+	auto it = sector.find(id);
+	if (it == sector.end()) return false;
+
+	sector.erase(it);
+
 	return true;
 }
