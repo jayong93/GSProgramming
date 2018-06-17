@@ -1,6 +1,7 @@
 #pragma once
 #include "../Share/Shares.h"
 #include "GSClient.h"
+#include "typedef.h"
 
 struct Object {
 	unsigned int id = 0;
@@ -25,21 +26,34 @@ struct Client : public Object {
 	}
 };
 
-using ObjectMap = std::unordered_map<unsigned int, std::unique_ptr<Object>>;
-
-struct UniqueLocked {
-public:
-	UniqueLocked(std::mutex& lock, ObjectMap& data) : lg{ lock }, data{ data } {}
-	UniqueLocked(UniqueLocked&& o) : lg{ std::move(o.lg) }, data{ o.data } {}
-	ObjectMap& data;
-private:
-	std::unique_lock<std::mutex> lg;
-};
-
 class ObjectManager {
 public:
-	UniqueLocked GetUniqueCollection() { return UniqueLocked{ lock, data }; }
+	ObjectManager() {}
+
+	bool Insert(std::unique_ptr<Object>&& ptr);
+	bool Insert(Object& o);
+	bool Remove(unsigned int id);
+
+	template <typename Func>
+	bool Update(unsigned int id, Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		auto it = data.find(id);
+		if (data.end() == it) return false;
+		func(*it->second);
+		return true;
+	}
+
+	template <typename Func>
+	auto Access(Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		return func(data);
+	}
+
 	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
+
+	ObjectManager(const ObjectManager&) = delete;
+	ObjectManager& operator=(const ObjectManager&) = delete;
+
 private:
 	std::mutex lock;
 	ObjectMap data;

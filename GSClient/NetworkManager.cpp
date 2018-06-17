@@ -4,19 +4,6 @@
 #include "GSClient.h"
 #include "Globals.h"
 
-void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
-{
-	auto locked = global.objManager.GetUniqueCollection();
-	auto& objMap = locked.data;
-
-	auto it = objMap.find(id);
-	if (it == objMap.end()) return;
-	auto& client = *reinterpret_cast<Client*>(it->second.get());
-
-	auto eov = new ExtOverlapped{ client.s, msg };
-	this->Send(*eov);
-}
-
 void NetworkManager::SendNetworkMessage(SOCKET sock, MsgBase & msg)
 {
 	auto eov = new ExtOverlapped{ sock, msg };
@@ -45,9 +32,10 @@ void NetworkManager::Send(ExtOverlapped & eov)
 void NetworkManager::Recv(ExtOverlapped & eov)
 {
 	if (eov.client == nullptr) return;
+	auto& msgRecon = eov.client->msgRecon;
 	WSABUF wb;
-	wb.buf = eov.client->msgRecon.GetBuffer();
-	wb.len = eov.client->msgRecon.GetSize();
+	wb.buf = msgRecon.GetBuffer();
+	wb.len = msgRecon.GetSize();
 	eov.isRecv = true;
 	DWORD flags{ 0 };
 	const int retval = WSARecv(eov.s, &wb, 1, nullptr, &flags, (LPWSAOVERLAPPED)&eov, nullptr);
@@ -75,8 +63,9 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
 	}
 
 	// 하나의 소켓에 대한 Recv는 동시간에 1개 밖에 존재하지 않기 때문에 client에 lock을 할 필요 없음
-	eov.client->msgRecon.AddSize(transferred);
-	eov.client->msgRecon.Reconstruct(eov.s);
+	auto& msgRecon = eov.client->msgRecon;
+	msgRecon.AddSize(transferred);
+	msgRecon.Reconstruct(eov.s);
 
 	global.networkManager.RecvNetworkMessage(*eov.client);
 }
