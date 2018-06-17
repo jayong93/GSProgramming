@@ -152,12 +152,20 @@ void Object::SetPos(short x, short y) {
 
 void Object::SendPutMessage(SOCKET s)
 {
-	MsgBase* msg{ nullptr };
+	unsigned int id;
+	short x, y;
+	Color* color;
+	ObjectType type;
 	{
 		ULock lg{ lock };
-		msg = new MsgPutObject{ id, x, y, color, type };
+		id = this->id;
+		x = this->x;
+		y = this->y;
+		color = &this->color;
+		type = this->type;
 	}
-	networkManager.SendNetworkMessage(s, *msg);
+	networkManager.SendNetworkMessage(s, *new MsgPutObject{id, x, y});
+	networkManager.SendNetworkMessage(s, *new MsgDetailData{id, *color, type});
 }
 
 void HPObject::SendPutMessage(SOCKET s)

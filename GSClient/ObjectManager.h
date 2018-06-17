@@ -22,13 +22,15 @@ private:
 
 public:
 	Object() {}
-	Object(unsigned int id, int x, int y, const Color& color, ObjectType type) : id{ id }, x(x), y(y), color{ RGB(color.r, color.g, color.b) }, type{ type } {}
+	Object(unsigned int id, int x, int y) : id{ id }, x(x), y(y){}
 
 	void SetPos(short x, short y) { this->x = x; this->y = y; }
 	auto GetPos() { return std::make_tuple(x, y); }
 	auto GetColor() const { return color; }
+	void SetColor(const Color& color) { this->color = RGB(color.r, color.g, color.b); }
 	auto GetID() const { return id; }
 	auto GetType() const { return type; }
+	void SetType(ObjectType type) { this->type = type; }
 	auto GetHP() const { return hp; }
 	void SetHP(int hp) { this->hp = hp; }
 	auto GetMaxHP() const { return maxHP; }

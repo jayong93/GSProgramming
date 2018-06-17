@@ -24,3 +24,4 @@
 #include <lua.hpp>
 #include <variant>
 #include <type_traits>
+#include <cassert>

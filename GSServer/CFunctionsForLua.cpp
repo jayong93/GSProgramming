@@ -18,7 +18,7 @@ int CFSendMessage::operator()(lua_State * L)
 	size_t converted;
 	mbstowcs_s(&converted, &msg[0], msg.size(), mbMsg, msgLen);
 
-	auto myId = this->obj.GetID();
+	WORD myId = this->obj.GetID();
 	auto nearList = objManager.GetNearList(myId, this->map);
 	for (auto& id : nearList) {
 		if (objManager.IsPlayer(id))

@@ -59,11 +59,31 @@ void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 {
 	if (nullptr == client) return;
-	switch (msg.type) {
-	case MsgType::CS_INPUT_MOVE:
+	auto rType = (MsgTypeCS)msg.type;
+	switch (rType) {
+	case MsgTypeCS::CS_MOVE_LEFT:
+	case MsgTypeCS::CS_MOVE_RIGHT:
+	case MsgTypeCS::CS_MOVE_UP:
+	case MsgTypeCS::CS_MOVE_DOWN:
 	{
-		auto& rMsg = *(const MsgInputMove*)(&msg);
-		client->Move(rMsg.dx, rMsg.dy);
+		short dx{ 0 }, dy{ 0 };
+		switch (rType) {
+		case MsgTypeCS::CS_MOVE_LEFT:
+			dx = -1;
+			break;
+		case MsgTypeCS::CS_MOVE_RIGHT:
+			dx = 1;
+			break;
+		case MsgTypeCS::CS_MOVE_UP:
+			dy = -1;
+			break;
+		case MsgTypeCS::CS_MOVE_DOWN:
+			dy = 1;
+			break;
+		default:
+			return;
+		}
+		client->Move(dx, dy);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
@@ -74,7 +94,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		});
 	}
 	break;
-	case MsgType::CS_TELEPORT:
+	case MsgTypeCS::CS_TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
 		client->SetPos(rMsg.x, rMsg.y);
