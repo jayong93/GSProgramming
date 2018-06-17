@@ -1,37 +1,35 @@
 #include "stdafx.h"
 #include "ObjectManager.h"
-#include "AIQueue.h"
 #include "NetworkManager.h"
 #include "LuaFunctionCall.h"
 #include "Globals.h"
+#include <cassert>
 
-void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg)
+void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg, ObjectMap& map)
 {
-	auto locked = objManager.GetUniqueCollection();
-
-	auto it = locked->find(id);
-	if (it == locked->end()) return;
+	auto it = map.find(id);
+	if (it == map.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
-	auto eov = new ExtOverlapped{ client.s, msg };
+	auto eov = new ExtOverlappedNetwork{ client.GetSocket(), msg };
 	this->Send(*eov);
 }
 
 void NetworkManager::SendNetworkMessage(SOCKET sock, MsgBase & msg)
 {
-	auto eov = new ExtOverlapped{ sock, msg };
+	auto eov = new ExtOverlappedNetwork{ sock, msg };
 	this->Send(*eov);
 }
 
 void NetworkManager::RecvNetworkMessage(Client& c)
 {
-	auto eov = new ExtOverlapped{ c.s, c };
+	auto eov = new ExtOverlappedNetwork{ c };
 	this->Recv(*eov);
 }
 
-void NetworkManager::Send(ExtOverlapped & eov)
+void NetworkManager::Send(ExtOverlappedNetwork & eov)
 {
-	if (!eov.msg) return;
+	assert(eov.msg, "The send eov has no msg");
 	WSABUF wb;
 	wb.buf = (char*)eov.msg.get();
 	wb.len = eov.msg->len;
@@ -42,12 +40,13 @@ void NetworkManager::Send(ExtOverlapped & eov)
 	if (error > 0) print_network_error(error);
 }
 
-void NetworkManager::Recv(ExtOverlapped & eov)
+void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 {
-	if (eov.client == nullptr) return;
+	assert(eov.client != nullptr, "The recv eov has no client");
+	auto& msgRecon = eov.client->GetMessageConstructor();
 	WSABUF wb;
-	wb.buf = eov.client->msgRecon.GetBuffer();
-	wb.len = eov.client->msgRecon.GetSize();
+	wb.buf = msgRecon.GetBuffer();
+	wb.len = msgRecon.GetSize();
 	eov.isRecv = true;
 	DWORD flags{ 0 };
 	const int retval = WSARecv(eov.s, &wb, 1, nullptr, &flags, (LPWSAOVERLAPPED)&eov, nullptr);
@@ -63,80 +62,76 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgType::CS_INPUT_MOVE:
 	{
 		auto& rMsg = *(const MsgInputMove*)(&msg);
-		auto oldX = client->x;
-		auto oldY = client->y;
-		{
-			std::unique_lock<std::mutex> lg{ client->lock };
-			client->Move(rMsg.dx, rMsg.dy);
-		}
+		const auto[oldX, oldY] = client->GetPos();
+		client->Move(rMsg.dx, rMsg.dy);
+		const auto[newX, newY] = client->GetPos();
+		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->y);
-		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
+		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
-		auto nearList = objManager.GetNearList(client->id);
-		client->UpdateViewList(nearList);
-		for (auto& id : nearList) {
-			if (objManager.IsPlayer(id)) continue;
+		objManager.Access([clientId{ id }, newX, newY](auto& map) {
+			UpdateViewList(clientId, map);
+			auto nearList = objManager.GetNearList(clientId, map);
+			for (auto& id : nearList) {
+				if (ObjectManager::IsPlayer(id)) continue;
+				auto it = map.find(id);
+				if (map.end() == it) continue;
+				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
 
-			UniqueLocked<lua_State*> lock;
-			{
-				auto locked = objManager.GetUniqueCollection();
-				lock = ((AI_NPC*)locked->at(id).get())->GetLuaState();
+				LuaCall call("player_moved", { (long long)clientId, (long long)newX, (long long)newY }, 0);
+				npc.lua.Call(call, npc, map);
 			}
-
-			LFCPlayerMoved{ client->id, client->x, client->y }(lock);
-		}
+		});
 	}
 	break;
 	case MsgType::CS_TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
-		auto oldX = client->x;
-		auto oldY = client->y;
-		{
-			std::unique_lock<std::mutex> lg{ client->lock };
-			client->x = rMsg.x;
-			client->y = rMsg.y;
-		}
+		const auto[oldX, oldY] = client->GetPos();
+		client->SetPos(rMsg.x, rMsg.y);
+		const auto[newX, newY] = client->GetPos();
+		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(client->id, oldX, oldY, client->x, client->x);
-		networkManager.SendNetworkMessage(client->s, *new MsgMoveObject{ client->id, client->x, client->y });
+		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
-		auto nearList = objManager.GetNearList(client->id);
-		client->UpdateViewList(nearList);
+		objManager.Access([id](auto& map) {
+			UpdateViewList(id, map);
+		});
 	}
 	break;
 	}
 }
 
-void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
+void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov)
 {
-	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
-	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(eov.client);
+		RemoveClient(ov->client);
 		return;
 	}
 }
 
-void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov)
+void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov)
 {
-	auto eov_ptr = std::unique_ptr<ExtOverlapped>{ ov };
-	auto& eov = *eov_ptr.get();
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(eov.client);
+		RemoveClient(ov->client);
 		return;
 	}
 
 	// 하나의 소켓에 대한 Recv는 동시간에 1개 밖에 존재하지 않기 때문에 client에 lock을 할 필요 없음
-	eov.client->msgRecon.AddSize(transferred);
-	eov.client->msgRecon.Reconstruct(eov.s);
+	auto& msgRecon = ov->client->GetMessageConstructor();
+	msgRecon.AddSize(transferred);
+	msgRecon.Reconstruct(ov->s);
 
-	networkManager.RecvNetworkMessage(*eov.client);
+	networkManager.RecvNetworkMessage(*ov->client);
 }
 
-ExtOverlappedNPC::ExtOverlappedNPC(const NPCMsg & msg) : msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
 
-ExtOverlappedNPC::ExtOverlappedNPC(std::unique_ptr<const NPCMsg>&& msg) : msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+ExtOverlappedEvent::ExtOverlappedEvent(const EventBase & msg) : ExtOverlappedBase{ false }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
+
+ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) : ExtOverlappedBase{ false }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+
+ExtOverlappedNetwork::ExtOverlappedNetwork(Client & client) : ExtOverlappedBase{ true }, s{ client.GetSocket() }, client{ &client } { ZeroMemory(&ov, sizeof(ov)); }

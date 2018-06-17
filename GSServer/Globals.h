@@ -5,7 +5,7 @@
 #include "ObjectManager.h"
 #include "SectorManager.h"
 #include "NetworkManager.h"
-#include "AIQueue.h"
+#include "TimerQueue.h"
 #include "DBQueue.h"
 
 #ifndef SET_GLOBALS
@@ -15,7 +15,7 @@ GLOBAL unsigned int npcNextId;
 GLOBAL ObjectManager objManager;
 GLOBAL SectorManager sectorManager;
 GLOBAL NetworkManager networkManager;
-GLOBAL NPCMsgQueue<NpcMsgComp> npcMsgQueue;
+GLOBAL TimerQueue timerQueue;
 GLOBAL DBMsgQueue dbMsgQueue;
 GLOBAL HANDLE iocpObject;
 GLOBAL SQLHENV henv;

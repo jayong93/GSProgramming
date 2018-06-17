@@ -1,37 +1,18 @@
 #pragma once
 
-#include "ObjectManager.h"
-
 void display_error(lua_State* L);
 
-class LuaFunctionCall {
+using LuaArg = std::variant<double, long long, std::string, bool>;
+
+class LuaCall {
 public:
-	LuaFunctionCall() {}
-	virtual ~LuaFunctionCall() {}
+	LuaCall(const char* funcName, std::initializer_list<LuaArg> li, unsigned int returnNum);
+	LuaCall(const char* funcName, std::vector<LuaArg>&& args, unsigned int returnNum);
+	LuaCall(const char* funcName, const std::vector<LuaArg>& args, unsigned int returnNum);
+	std::vector<LuaArg> operator()(lua_State* L) const;
 
-	virtual bool operator()(UniqueLocked<lua_State*>& state) = 0;
-};
-
-class LFCPlayerMoved : public LuaFunctionCall {
-public:
-	LFCPlayerMoved(unsigned int playerId, short x, short y) : playerId{ playerId }, x{ x }, y{ y } {}
-
-	virtual bool operator()(UniqueLocked<lua_State*>& state);
 private:
-	unsigned int playerId;
-	short x, y;
-};
-
-class LFCSetMyId : public LuaFunctionCall {
-public:
-	LFCSetMyId(unsigned int myId) : myId{ myId } {}
-	virtual bool operator()(UniqueLocked<lua_State*>& state);
-private:
-	unsigned int myId;
-};
-
-class LFCRandomMove : public LuaFunctionCall {
-public:
-	LFCRandomMove() {}
-	virtual bool operator()(UniqueLocked<lua_State*>& state);
+	std::string funcName;
+	std::vector<LuaArg> args;
+	unsigned int returnNum;
 };

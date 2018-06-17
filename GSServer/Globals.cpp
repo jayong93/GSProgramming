@@ -8,7 +8,7 @@ unsigned int npcNextId{ MAX_PLAYER };
 ObjectManager objManager;
 SectorManager sectorManager;
 NetworkManager networkManager;
-NPCMsgQueue<NpcMsgComp> npcMsgQueue{ NpcMsgComp() };
+TimerQueue timerQueue;
 DBMsgQueue dbMsgQueue;
 HANDLE iocpObject;
 SQLHENV henv;

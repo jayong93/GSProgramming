@@ -19,14 +19,12 @@ int main() {
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
-	{
-		auto locked = objManager.GetUniqueCollection();
-		for (auto i = 0; i < MAX_NPC; ++i) {
-			auto id = npcNextId++;
-			auto npc = std::unique_ptr<Object>{new AI_NPC(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), "script/hello.lua")};
-			sectorManager.AddToSector(npc->id, npc->x, npc->y);
-			locked->emplace(id, std::move(npc));
-		}
+	for (auto i = 0; i < MAX_NPC; ++i) {
+		auto id = npcNextId++;
+		auto npc = std::unique_ptr<Object>{ new AI_NPC(id, posRange(rndGen), posRange(rndGen), Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), "script/hello.lua") };
+		auto[x, y] = npc->GetPos();
+		sectorManager.AddToSector(npc->GetID(), x, y);
+		objManager.Insert(std::move(npc));
 	}
 
 	std::vector<std::thread> threadList;
@@ -46,35 +44,32 @@ int main() {
 void RemoveClient(Client* client)
 {
 	if (nullptr == client) return;
-	closesocket(client->s);
+	closesocket(client->GetSocket());
 	std::unique_ptr<Object> localClient;
-	{
-		auto locked = objManager.GetUniqueCollection();
-		auto it = locked->find(client->id);
-		if (it != locked->end())
-		{
-			// 해당 클라이언트에 대한 다른 클라이언트의 접근이 모두 끝난 뒤에 이동
-			std::unique_lock<std::mutex> clg{ client->lock };
-			localClient = std::move(it->second);
-		}
-		else return;
-		locked->erase(it);
-	}
-	{
-		auto locked = objManager.GetUniqueCollection();
-		for (auto& id : client->viewList) {
-			auto it = locked->find(id);
-			if (it == locked->end()) continue;
-			auto& player = *reinterpret_cast<Client*>(it->second.get());
-			std::unique_lock<std::mutex> plg{ player.lock };
-			const auto removedCount = player.viewList.erase(client->id);
-			if (removedCount == 1) {
-				networkManager.SendNetworkMessage(player.s, *new MsgRemoveObject{ client->id });
+	objManager.Access([client, &localClient](auto& map) {
+		auto it = map.find(client->GetID());
+		if (map.end() == it) return;
+		localClient.swap(it->second);
+		map.erase(it);
+	});
+	if (!localClient) return;
+
+	objManager.Access([client](auto& map) {
+		client->AccessToViewList([client, &map](auto& viewList) {
+			for (auto& id : viewList) {
+				auto it = map.find(id);
+				if (it == map.end()) continue;
+				const auto removedCount = viewList.erase(id);
+				if (objManager.IsPlayer(id)) {
+					auto& player = *reinterpret_cast<Client*>(it->second.get());
+					if (removedCount == 1) {
+						networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
+					}
+				}
 			}
-		}
-	}
-	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->gameID, client->x, client->y });
-	printf_s("client #%d has disconnected\n", localClient->id);
+		});
+	});
+	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
 
 void AcceptThreadFunc()
@@ -113,37 +108,40 @@ void WorkerThreadFunc()
 {
 	DWORD bytes;
 	ULONG_PTR key;
-	ExtOverlapped* ov;
+	ExtOverlappedBase* ov;
 	while (true) {
 		DWORD error{ 0 };
 		auto isSuccess = GetQueuedCompletionStatus(iocpObject, &bytes, &key, (LPOVERLAPPED*)&ov, INFINITE);
-		if (FALSE == isSuccess) error = GetLastError();
-		if (key >= MAX_PLAYER) { auto npcOV = reinterpret_cast<ExtOverlappedNPC*>(ov); NPCMsgCallback(error, npcOV); }
-		else if (ov->isRecv) { RecvCompletionCallback(error, bytes, ov); }
-		else { SendCompletionCallback(error, bytes, ov); }
+		if (!ov->isNetworkEvent) {
+			auto eov = std::unique_ptr<ExtOverlappedEvent>{ reinterpret_cast<ExtOverlappedEvent*>(ov) };
+			(*eov->msg)();
+		}
+		else {
+			auto eov = std::unique_ptr<ExtOverlappedNetwork>{ reinterpret_cast<ExtOverlappedNetwork*>(ov) };
+			if (FALSE == isSuccess) error = GetLastError();
+			if (eov->isRecv) { RecvCompletionCallback(error, bytes, eov); }
+			else { SendCompletionCallback(error, bytes, eov); }
+		}
 	}
 }
 
 void TimerThreadFunc()
 {
 	using namespace std::chrono;
-	time_point<high_resolution_clock, milliseconds> startTime, endTime;
 	while (true) {
-		startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		while (!npcMsgQueue.isEmpty()) {
-			auto msg = npcMsgQueue.Top();
-			if (msg->time > startTime.time_since_epoch().count()) break;
+		auto startTime = time_point_cast<milliseconds>(high_resolution_clock::now());
+		while (!timerQueue.isEmpty()) {
+			auto msg = timerQueue.Top();
+			if (msg->GetTime() > startTime.time_since_epoch().count()) break;
 
-			auto nmsg = new ExtOverlappedNPC{ *msg };
-			npcMsgQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
-			PostQueuedCompletionStatus(iocpObject, sizeof(nmsg), nmsg->msg->id, (LPWSAOVERLAPPED)nmsg);
+			auto eov = new ExtOverlappedEvent{ *msg };
+			timerQueue.Pop(); // 메세지가 nmsg 안에 이동되었으므로 Pop해도 안전
+			PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPWSAOVERLAPPED)eov);
 		}
-		endTime = time_point_cast<milliseconds>(high_resolution_clock::now());
-		auto elapsedTime = (endTime - startTime).count();
-		// 1초마다 타이머 실행
-		if (elapsedTime < 1000) { Sleep(1000 - elapsedTime); }
+		Sleep(0);
 	}
 }
+
 
 void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
 {
@@ -157,26 +155,27 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 
 	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
-	{
-		auto locked = objManager.GetUniqueCollection();
 
+	objManager.Access([sock, clientId, &newClientPtr](auto& map) {
 		// 이미 NPC들이 들어가있는 것을 감안해야 함.
-		if (locked->size() - MAX_NPC > MAX_PLAYER) {
+		if (map.size() - MAX_NPC > MAX_PLAYER) {
 			closesocket(sock);
 			return;
 		}
-		locked->emplace(clientId, std::move(newClientPtr));
-	}
+		map.emplace(clientId, std::move(newClientPtr));
+	});
 
-	sectorManager.AddToSector(clientId, newClient.x, newClient.y);
+	auto[x, y] = newClient.GetPos();
+	sectorManager.AddToSector(clientId, x, y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
-	networkManager.SendNetworkMessage(newClient.s, *new MsgGiveID{ clientId });
-	networkManager.SendNetworkMessage(newClient.s, *new MsgPutObject{ newClient.id, newClient.x, newClient.y, newClient.color });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgPutObject{ clientId, x, y, newClient.GetColor() });
 
-	auto nearList = objManager.GetNearList(clientId);
-	newClient.UpdateViewList(nearList);
+	objManager.Access([clientId](auto& map) {
+		UpdateViewList(clientId, map);
+	});
 
 	networkManager.RecvNetworkMessage(newClient);
 }

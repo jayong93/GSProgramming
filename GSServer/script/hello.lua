@@ -1,20 +1,18 @@
 myId = 9999999999;
-move_count = 0;
 
 function set_my_id( id )
     myId = id;
 end
 
 function player_moved( player_id, x, y )
-    local my_x, my_y = c_get_my_pos(myId);
+    local my_x, my_y = c_get_my_pos();
     if my_x == x and my_y == y then
-        c_send_message(myId, "Hello");
-        move_count = 1;
-        c_send_random_move(myId, 0);
+        c_send_message("Hello");
+        c_lua_call(0, "random_move", 3, 0);
     end
 end
 
-function random_move()
+function random_move(move_count)
     local dx = c_get_random_num(-1, 1);
     local dy = 0;
     if dx == 0 then
@@ -22,11 +20,10 @@ function random_move()
             dy = c_get_random_num(-1, 1);
         end
     end
-    c_move(myId, dx, dy);
-    if move_count < 3 then
-        c_send_random_move(myId, 1000);
-        move_count = move_count + 1;
+    c_move(dx, dy);
+    if move_count > 1 then
+        c_lua_call(1, "random_move", move_count-1, 0);
     else
-        c_send_message(myId, "Bye!");
+        c_send_message("Bye!");
     end
 end

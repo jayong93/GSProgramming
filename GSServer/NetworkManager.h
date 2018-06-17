@@ -1,42 +1,46 @@
 #pragma once
 #include "../Share/Shares.h"
+#include "Event.h"
+#include "typedef.h"
 
-class Client;
-struct NPCMsg;
-
-struct ExtOverlapped {
+struct ExtOverlappedBase {
 	WSAOVERLAPPED ov;
+	bool isNetworkEvent;
+
+	ExtOverlappedBase(bool isNetwork) : isNetworkEvent{ isNetwork } {}
+};
+
+struct ExtOverlappedNetwork : public ExtOverlappedBase {
 	SOCKET s;
 	Client* client;
 	std::unique_ptr<MsgBase> msg; // 동일한 메시지를 Broadcasting하는 경우, shared_ptr로 공유해서 사용
 	bool isRecv{ false };
 
-	ExtOverlapped(SOCKET s, MsgBase& msg) : s{ s }, client{ nullptr }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
-	ExtOverlapped(SOCKET s, std::unique_ptr<MsgBase>&& msg) : s{ s }, client{ nullptr }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
-	ExtOverlapped(SOCKET s, Client& client) : s{ s }, client{ &client } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ &msg } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ std::move(msg) } { ZeroMemory(&ov, sizeof(ov)); }
+	ExtOverlappedNetwork(Client& client);
 
-	ExtOverlapped(const ExtOverlapped&) = delete;
-	ExtOverlapped& operator=(const ExtOverlapped&) = delete;
+	ExtOverlappedNetwork(const ExtOverlappedNetwork&) = delete;
+	ExtOverlappedNetwork& operator=(const ExtOverlappedNetwork&) = delete;
 };
 
-struct ExtOverlappedNPC {
-	WSAOVERLAPPED ov;
-	std::unique_ptr<const NPCMsg> msg;
+struct ExtOverlappedEvent : public ExtOverlappedBase {
+	std::unique_ptr<const EventBase> msg;
 
-	ExtOverlappedNPC(const NPCMsg& msg);
-	ExtOverlappedNPC(std::unique_ptr<const NPCMsg>&& msg);
-	ExtOverlappedNPC(const ExtOverlappedNPC&) = delete;
-	ExtOverlappedNPC& operator=(const ExtOverlappedNPC&) = delete;
+	ExtOverlappedEvent(const EventBase& msg);
+	ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg);
+	ExtOverlappedEvent(const ExtOverlappedEvent&) = delete;
+	ExtOverlappedEvent& operator=(const ExtOverlappedEvent&) = delete;
 };
 
 class NetworkManager {
 public:
-	void SendNetworkMessageWithID(int id, MsgBase& msg);
+	void SendNetworkMessageWithID(int id, MsgBase& msg, ObjectMap& map);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
 	void RecvNetworkMessage(Client& sock);
 private:
-	void Send(ExtOverlapped& eov);
-	void Recv(ExtOverlapped& eov);
+	void Send(ExtOverlappedNetwork& eov);
+	void Recv(ExtOverlappedNetwork& eov);
 };
 
 struct ServerMsgHandler {
@@ -48,5 +52,5 @@ struct ServerMsgHandler {
 	~ServerMsgHandler() {}
 };
 
-void SendCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
-void RecvCompletionCallback(DWORD error, DWORD transferred, ExtOverlapped*& ov);
+void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov);
+void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov);

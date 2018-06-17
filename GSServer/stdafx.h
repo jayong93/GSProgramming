@@ -21,3 +21,5 @@
 #include <sqlext.h>
 #include <locale.h>
 #include <lua.hpp>
+#include <variant>
+#include <type_traits>
