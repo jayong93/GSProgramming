@@ -49,7 +49,7 @@ private:
 	}
 };
 
-using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase >;
+using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase>;
 
 class AI_NPC : public NPC {
 public:

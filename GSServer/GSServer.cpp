@@ -233,7 +233,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
 	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
-	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgPutObject{ clientId, x, y, newClient.GetColor(), newClient.GetType() });
+	newClient.SendPutMessage(newClient.GetSocket());
 
 	objManager.Access([clientId](auto& map) {
 		UpdateViewList(clientId, map);

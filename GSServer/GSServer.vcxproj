@@ -48,7 +48,6 @@
     <ClCompile Include="LuaModule.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="NPC.cpp" />
-    <ClCompile Include="NPCState.cpp" />
     <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="SectorManager.cpp" />
     <ClCompile Include="stdafx.cpp">

@@ -62,7 +62,7 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 
 		if (isInserted && amIPlayer) {
 			auto[x, y] = other.GetPos();
-			networkManager.SendNetworkMessage(((Client&)me).GetSocket(), *new MsgPutObject{ other.GetID(), x, y, other.GetColor() , other.GetType()});
+			other.SendPutMessage(((Client&)me).GetSocket());
 		}
 
 		const auto amIInserted = other.AccessToViewList([id{ me.GetID() }](auto& viewList){
@@ -77,7 +77,7 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 			}
 			else {
 				auto[x, y] = me.GetPos();
-				networkManager.SendNetworkMessage(((Client&)other).GetSocket(), *new MsgPutObject{ me.GetID(), x, y, me.GetColor(), me.GetType() });
+				me.SendPutMessage(((Client&)other).GetSocket());
 			}
 		}
 		else {

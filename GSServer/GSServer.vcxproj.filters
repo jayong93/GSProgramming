@@ -128,11 +128,8 @@
     <ClCompile Include="LuaModule.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="NPCState.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="NPC.cpp">
-      <Filter>소스 파일</Filter>
+      <Filter>소스 파일\AI</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
