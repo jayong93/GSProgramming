@@ -65,14 +65,14 @@ public:
 				}
 			}
 			// 패킷사이즈조차 알 수 없을만큼 데이터가 적은 경우
-			else if (bufSize < sizeof(short)) {
+			else if (bufSize < sizeof(MsgBase::len)) {
 				if (curPos != buf.data()) {
 					memcpy_s(buf.data(), bufMaxLen, curPos, bufSize);
 				}
 				return;
 			}
 			else {
-				short packetSize = *reinterpret_cast<short*>(curPos);
+				short packetSize = *reinterpret_cast<decltype(MsgBase::len)*>(curPos);
 				// 패킷이 잘려서 온 경우
 				if (packetSize > bufSize) {
 					if (backBufMaxLen < packetSize) {
