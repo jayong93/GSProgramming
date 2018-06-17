@@ -2,24 +2,28 @@
 #include "../Share/Shares.h"
 #include "typedef.h"
 #include "NetworkManager.h"
-#include "LuaModule.h"
 
 class Object {
-	std::mutex lock;
 	unsigned int id = 0;
 	short x = 0, y = 0;
 	Color color;
+	ObjectType type;
 	std::unordered_set<unsigned int> viewList;
 
+protected:
+	std::mutex lock;
+
 public:
-	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
+	Object(unsigned int id, short x, short y, const Color& color, ObjectType type) : id{ id }, x{ x }, y{ y }, color{ color }, type{ type } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } { o.id = 0; }
 
 	void Move(short dx, short dy);
-	void SetPos(short x, short y) { ULock{ lock }; this->x = x; this->y = y; }
+	void SetPos(short x, short y);
 	auto GetID() const { return id; }
-	auto GetPos() { ULock{ lock }; return std::make_tuple( x,y ); }
+	auto GetPos() { ULock{ lock }; return std::make_tuple(x, y); }
 	auto& GetColor() const { return color; }
+	auto GetType() const { return type; }
+	virtual void SendPutMessage(SOCKET s);
 
 	template<typename Func>
 	auto AccessToViewList(Func func) {
@@ -28,21 +32,40 @@ public:
 	}
 };
 
-class AI_NPC : public Object {
+class HPObject : public Object {
 public:
-	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : Object{ id, x, y, color }, lua{ id, scriptName } {};
+	HPObject(unsigned int id, short x, short y, const Color& color, ObjectType type, unsigned int hp) : Object{ id,x,y,color, type }, hp( hp ), maxHP( hp ) {}
 
-	LuaModule lua;
+	auto GetHP() { ULock lg{ lock }; return hp; }
+	int SetHP(unsigned int hp) {
+		ULock lg{ lock };
+		this->hp = hp;
+		this->hp = min(this->maxHP, max(0, this->hp));
+		return this->hp;
+	}
+	int AddHP(int diff) {
+		ULock lg{ lock };
+		this->hp += diff;
+		this->hp = min(this->maxHP, max(0, this->hp));
+		return this->hp;
+	}
+	auto GetMaxHP() { ULock lg{ lock }; return maxHP; }
+	int SetMaxHP(unsigned int maxHP) { ULock lg{ lock }; this->maxHP = maxHP; return this->maxHP; }
+	virtual void SendPutMessage(SOCKET s);
+
+private:
+	int hp;
+	int maxHP;
 };
 
-class Client : public Object {
+class Client : public HPObject {
 	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
 	std::wstring gameID;
 
 public:
-	Client(unsigned int id, SOCKET s, Color c, short x, short y, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, Object{ id, x, y, c }, gameID{ gameID } {}
-	Client(Client&& o) : msgRecon{ std::move(o.msgRecon) }, s{ o.s }, gameID{ std::move(o.gameID) }, Object{ std::move(o) } { o.s = 0; }
+	Client(unsigned int id, SOCKET s, const Color& c, short x, short y, int hp, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID } {}
+	Client(unsigned int id, SOCKET s, const Color& c, short x, short y, const wchar_t* gameID) : Client{ id, s, c, x, y, 100, gameID } {}
 
 	auto& GetMessageConstructor() { return msgRecon; }
 	auto GetSocket() const { return s; }
@@ -70,6 +93,11 @@ public:
 	auto Access(Func func) {
 		std::unique_lock<std::mutex> lg{ lock };
 		return func(data);
+	}
+
+	template <typename Func>
+	bool AccessWithValue(unsigned int id, Func func) {
+		return Update(id, [&data{ this->data }, &func](auto& obj) {func(obj, data); });
 	}
 
 	static std::unordered_set<unsigned int> GetNearList(unsigned int id, ObjectMap& map);

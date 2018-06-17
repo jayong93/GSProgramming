@@ -1,7 +1,8 @@
 #pragma once
 #include "../Share/Shares.h"
-#include "Event.h"
 #include "typedef.h"
+
+class EventBase;
 
 struct ExtOverlappedBase {
 	WSAOVERLAPPED ov;

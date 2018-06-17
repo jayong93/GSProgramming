@@ -2,6 +2,7 @@
 #include "ObjectManager.h"
 #include "NetworkManager.h"
 #include "LuaFunctionCall.h"
+#include "NPC.h"
 #include "Globals.h"
 #include <cassert>
 
@@ -58,42 +59,48 @@ void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 {
 	if (nullptr == client) return;
-	switch (msg.type) {
-	case MsgType::CS_INPUT_MOVE:
+	auto rType = (MsgTypeCS)msg.type;
+	switch (rType) {
+	case MsgTypeCS::CS_MOVE_LEFT:
+	case MsgTypeCS::CS_MOVE_RIGHT:
+	case MsgTypeCS::CS_MOVE_UP:
+	case MsgTypeCS::CS_MOVE_DOWN:
 	{
-		auto& rMsg = *(const MsgInputMove*)(&msg);
-		const auto[oldX, oldY] = client->GetPos();
-		client->Move(rMsg.dx, rMsg.dy);
+		short dx{ 0 }, dy{ 0 };
+		switch (rType) {
+		case MsgTypeCS::CS_MOVE_LEFT:
+			dx = -1;
+			break;
+		case MsgTypeCS::CS_MOVE_RIGHT:
+			dx = 1;
+			break;
+		case MsgTypeCS::CS_MOVE_UP:
+			dy = -1;
+			break;
+		case MsgTypeCS::CS_MOVE_DOWN:
+			dy = 1;
+			break;
+		default:
+			return;
+		}
+		client->Move(dx, dy);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
 		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
-		objManager.Access([clientId{ id }, newX, newY](auto& map) {
+		objManager.Access([client{ this->client }, clientId{ id }](auto& map) {
 			UpdateViewList(clientId, map);
-			auto nearList = objManager.GetNearList(clientId, map);
-			for (auto& id : nearList) {
-				if (ObjectManager::IsPlayer(id)) continue;
-				auto it = map.find(id);
-				if (map.end() == it) continue;
-				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
-
-				LuaCall call("player_moved", { (long long)clientId, (long long)newX, (long long)newY }, 0);
-				npc.lua.Call(call, npc, map);
-			}
 		});
 	}
 	break;
-	case MsgType::CS_TELEPORT:
+	case MsgTypeCS::CS_TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
-		const auto[oldX, oldY] = client->GetPos();
 		client->SetPos(rMsg.x, rMsg.y);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
 		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
 
 		objManager.Access([id](auto& map) {

@@ -3,6 +3,7 @@
 #include "ObjectManager.h"
 #include "Globals.h"
 #include "LuaFunctionCall.h"
+#include "NPC.h"
 #include "CFunctionsForLua.h"
 
 bool ObjectManager::Insert(std::unique_ptr<Object>&& ptr)
@@ -46,25 +47,25 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 	if (map.end() == it) return;
 	auto& me = *it->second;
 
-	for (auto& playerId : nearList) {
-		const bool isPlayer = objManager.IsPlayer(playerId);
+	for (auto& otherID : nearList) {
+		const bool isPlayer = objManager.IsPlayer(otherID);
 
 		if (!amIPlayer && !isPlayer) continue; // 둘 다 NPC면 viewlist 업데이트 의미 없음.
 
-		auto it = map.find(playerId);
+		auto it = map.find(otherID);
 		if (it == map.end()) continue;
-		auto& player = *it->second;
+		auto& other = *it->second;
 
-		const auto isInserted = me.AccessToViewList([playerId](auto& viewList) {
-			return viewList.insert(playerId).second;
+		const auto isInserted = me.AccessToViewList([otherID](auto& viewList) {
+			return viewList.insert(otherID).second;
 		});
 
 		if (isInserted && amIPlayer) {
-			auto[x, y] = player.GetPos();
-			networkManager.SendNetworkMessage(((Client&)me).GetSocket(), *new MsgPutObject{ player.GetID(), x, y, player.GetColor() });
+			auto[x, y] = other.GetPos();
+			other.SendPutMessage(((Client&)me).GetSocket());
 		}
 
-		const auto amIInserted = player.AccessToViewList([id{ me.GetID() }](auto& viewList){
+		const auto amIInserted = other.AccessToViewList([id{ me.GetID() }](auto& viewList){
 			return viewList.insert(id).second;
 		});
 
@@ -72,12 +73,17 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 		{
 			if (!amIInserted) {
 				auto[x, y] = me.GetPos();
-				networkManager.SendNetworkMessage(((Client&)player).GetSocket(), *new MsgMoveObject{ me.GetID(), x, y });
+				networkManager.SendNetworkMessage(((Client&)other).GetSocket(), *new MsgMoveObject{ me.GetID(), x, y });
 			}
 			else {
 				auto[x, y] = me.GetPos();
-				networkManager.SendNetworkMessage(((Client&)player).GetSocket(), *new MsgPutObject{ me.GetID(), x, y, me.GetColor() });
+				me.SendPutMessage(((Client&)other).GetSocket());
 			}
+		}
+		else {
+			auto& npc = (NPC&)other;
+			// 둘 다 NPC면 여기까지 도달할 수 없기 때문에 강제 캐스팅 해도 안전.
+			npc.PlayerMove((Client&)me, map);
 		}
 	}
 
@@ -98,22 +104,79 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 		const bool isPlayer = objManager.IsPlayer(id);
 		auto it = map.find(id);
 		if (it == map.end()) continue;
-		auto player = it->second.get();
+		auto other = it->second.get();
 
-		player->AccessToViewList([id{ me.GetID() }, isPlayer, player](auto& viewList) {
+		other->AccessToViewList([id{ me.GetID() }, isPlayer, other](auto& viewList) {
 			auto retval = viewList.erase(id);
 			if (isPlayer && 1 == retval) {
-				networkManager.SendNetworkMessage(((Client*)player)->GetSocket(), *new MsgRemoveObject{ id });
+				networkManager.SendNetworkMessage(((Client*)other)->GetSocket(), *new MsgRemoveObject{ id });
 			}
 		});
+
+		if (amIPlayer && !isPlayer) {
+			auto& npc = *(NPC*)other;
+			npc.PlayerLeave((Client&)me, map);
+		}
 	}
 }
 
 void Object::Move(short dx, short dy)
 {
-	ULock lg{ this->lock };
-	this->x += dx;
-	this->y += dy;
-	this->x = max(0, min(this->x, BOARD_W - 1));
-	this->y = max(0, min(this->y, BOARD_H - 1));
+	short oldX, oldY, newX, newY;
+	{
+		ULock lg{ this->lock };
+		oldX = this->x;
+		oldY = this->y;
+		this->x += dx;
+		this->y += dy;
+		this->x = max(0, min(this->x, BOARD_W - 1));
+		this->y = max(0, min(this->y, BOARD_H - 1));
+		newX = this->x;
+		newY = this->y;
+	}
+	sectorManager.UpdateSector(this->id, oldX, oldY, newX, newY);
+}
+
+void Object::SetPos(short x, short y) {
+	short oldX, oldY, newX, newY;
+	{
+		ULock{ lock };
+		oldX = this->x;
+		oldY = this->y;
+		this->x = x; this->y = y;
+		newX = this->x;
+		newY = this->y;
+	}
+	sectorManager.UpdateSector(this->id, oldX, oldY, newX, newY);
+}
+
+void Object::SendPutMessage(SOCKET s)
+{
+	unsigned int id;
+	short x, y;
+	Color* color;
+	ObjectType type;
+	{
+		ULock lg{ lock };
+		id = this->id;
+		x = this->x;
+		y = this->y;
+		color = &this->color;
+		type = this->type;
+	}
+	networkManager.SendNetworkMessage(s, *new MsgPutObject{id, x, y});
+	networkManager.SendNetworkMessage(s, *new MsgDetailData{id, *color, type});
+}
+
+void HPObject::SendPutMessage(SOCKET s)
+{
+	Object::SendPutMessage(s);
+	MsgBase* msg{ nullptr }, *maxMsg{ nullptr };
+	{
+		ULock lg{ lock };
+		msg = new MsgSetHP{ this->GetID(), hp };
+		maxMsg = new MsgSetMaxHP{ this->GetID(), maxHP };
+	}
+	networkManager.SendNetworkMessage(s, *msg);
+	networkManager.SendNetworkMessage(s, *maxMsg);
 }

@@ -5,6 +5,7 @@
 #include "LuaFunctionCall.h"
 #include "Event.h"
 #include "TimerQueue.h"
+#include "NPC.h"
 #include "Globals.h"
 
 int CFSendMessage::operator()(lua_State * L)
@@ -17,7 +18,7 @@ int CFSendMessage::operator()(lua_State * L)
 	size_t converted;
 	mbstowcs_s(&converted, &msg[0], msg.size(), mbMsg, msgLen);
 
-	auto myId = this->obj.GetID();
+	WORD myId = this->obj.GetID();
 	auto nearList = objManager.GetNearList(myId, this->map);
 	for (auto& id : nearList) {
 		if (objManager.IsPlayer(id))
@@ -88,14 +89,11 @@ int CFLuaCallEvent::operator()(lua_State * L)
 
 	// 바로 실행
 	if (delay <= 0) {
-		auto ev = MakeEvent(std::move(eventBody));
-		auto eov = new ExtOverlappedEvent{ std::move(ev) };
-		PostQueuedCompletionStatus(iocpObject, sizeof(*eov), 0, (LPOVERLAPPED)eov);
+		PostEvent(std::move(eventBody));
 	}
 	// 타이머 적용
 	else {
-		auto tev = MakeTimerEvent(std::move(eventBody), timePoint, delayMilli);
-		timerQueue.Push(std::move(tev));
+		PostTimerEvent(timePoint, delayMilli, std::move(eventBody));
 	}
 
 	return 0;
@@ -106,10 +104,7 @@ int CFMove::operator()(lua_State * L)
 	short dx = luaL_checkinteger(L, 1);
 	short dy = luaL_checkinteger(L, 2);
 
-	auto[oldX, oldY] = this->obj.GetPos();
 	this->obj.Move(dx, dy);
-	auto[newX, newY] = this->obj.GetPos();
-	sectorManager.UpdateSector(this->obj.GetID(), oldX, oldY, newX, newY);
 	UpdateViewList(this->obj.GetID(), this->map);
 	return 0;
 }
