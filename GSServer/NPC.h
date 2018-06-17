@@ -3,9 +3,11 @@
 #include "LuaModule.h"
 #include "NPCState.h"
 
+enum class AttackType {PEACEFUL, AGGRESSIVE};
+
 class NPC : public Object {
 public:
-	NPC(unsigned int id, short x, short y, Color color) : Object{ id, x, y, color } {}
+	NPC(unsigned int id, short x, short y, const Color& color, ObjectType type) : Object{ id, x, y, color, type } {}
 	virtual ~NPC() {}
 
 	virtual void PlayerMove(Client& player, ObjectMap& map) = 0;
@@ -14,12 +16,12 @@ public:
 	virtual void Update(ObjectMap& map) = 0;
 };
 
-template <typename Idle, typename... States>
+template <ObjectType Type, AttackType AType, typename Idle, typename... States>
 class HardcodedNPC : public NPC {
 public:
 	using State = std::variant<Idle, States...>;
 
-	HardcodedNPC(unsigned int id, short x, short y, Color color) : NPC{ id, x, y, color }, state{ Idle{} } {}
+	HardcodedNPC(unsigned int id, short x, short y) : NPC{ id, x, y, GetColor(), Type }, state{ Idle{} } {}
 
 	virtual void PlayerMove(Client& player, ObjectMap& map) {
 		std::visit([this, &player, &map](auto&& s) {s.PlayerMove(*this, player, map); }, state);
@@ -31,17 +33,27 @@ public:
 		std::visit([this, &player, &map](auto&& s) {s.Attacked(*this, player, map); }, state);
 	}
 	virtual void Update(ObjectMap& map) {
-		std::visit([this,&map](auto&& s) {s.Update(*this, map); }, state);
+		std::visit([this, &map](auto&& s) {s.Update(*this, map); }, state);
 	}
 
 	State state;
+
+private:
+	static constexpr auto GetColor() {
+		if constexpr(AType == AttackType::AGGRESSIVE) {
+			return Color{ 255, 0, 0 };
+		}
+		else {
+			return Color{ 0,0,255 };
+		}
+	}
 };
 
-using MeleeMonster = HardcodedNPC<MeleeIdle, MeleeChase>;
+using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase >;
 
 class AI_NPC : public NPC {
 public:
-	AI_NPC(unsigned int id, short x, short y, Color color, const char* scriptName) : NPC{ id, x, y, color }, lua{ id, scriptName } {};
+	AI_NPC(unsigned int id, short x, short y, const Color& color, const char* scriptName) : NPC{ id, x, y, color, ObjectType::OBJECT }, lua{ id, scriptName } {};
 
 	virtual void PlayerMove(Client& player, ObjectMap& map);
 	virtual void PlayerLeave(Client& player, ObjectMap& map);

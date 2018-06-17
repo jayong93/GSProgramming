@@ -24,7 +24,7 @@ int main() {
 
 	for (auto i = 0; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
-		auto npc = std::unique_ptr<Object>{ new MeleeMonster(id, posRange(rndGen), posRange(rndGen), Color(255,0,0)) };
+		auto npc = std::unique_ptr<Object>{ new AMeleeMonster(id, posRange(rndGen), posRange(rndGen)) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));
@@ -233,7 +233,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
 	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
-	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgPutObject{ clientId, x, y, newClient.GetColor() });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgPutObject{ clientId, x, y, newClient.GetColor(), newClient.GetType() });
 
 	objManager.Access([clientId](auto& map) {
 		UpdateViewList(clientId, map);

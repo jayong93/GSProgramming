@@ -7,8 +7,8 @@
 
 void MeleeIdle::PlayerMove(NPC & npc, Client & player, ObjectMap& map)
 {
-	auto next = MeleeMonster::State{ MeleeChase{player.GetID()} };
-	((MeleeMonster&)(npc)).state = next;
+	auto next = AMeleeMonster::State{ MeleeChase{player.GetID()} };
+	((AMeleeMonster&)(npc)).state = next;
 	auto eov = new ExtOverlappedEvent{ MakeEvent([id{npc.GetID()}](){
 		objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 			auto& npc = (NPC&)obj;
@@ -40,8 +40,8 @@ void MeleeChase::PlayerMove(NPC & npc, Client & player, ObjectMap& map)
 
 void MeleeChase::PlayerLeave(NPC & npc, Client & player, ObjectMap& map)
 {
-	auto next = MeleeMonster::State{ MeleeIdle{} };
-	((MeleeMonster&)npc).state.swap(next);
+	auto next = AMeleeMonster::State{ MeleeIdle{} };
+	((AMeleeMonster&)npc).state.swap(next);
 }
 
 void MeleeChase::Attacked(NPC & npc, Client & player, ObjectMap& map)

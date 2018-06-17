@@ -8,10 +8,11 @@ class Object {
 	unsigned int id = 0;
 	short x = 0, y = 0;
 	Color color;
+	ObjectType type;
 	std::unordered_set<unsigned int> viewList;
 
 public:
-	Object(unsigned int id, short x, short y, Color color) : id{ id }, x{ x }, y{ y }, color{ color } {}
+	Object(unsigned int id, short x, short y, Color color, ObjectType type) : id{ id }, x{ x }, y{ y }, color{ color }, type{ type } {}
 	Object(Object&& o) : id{ o.id }, x{ o.x }, y{ o.y }, color{ o.color }, viewList{ std::move(o.viewList) } { o.id = 0; }
 
 	void Move(short dx, short dy);
@@ -19,6 +20,7 @@ public:
 	auto GetID() const { return id; }
 	auto GetPos() { ULock{ lock }; return std::make_tuple( x,y ); }
 	auto& GetColor() const { return color; }
+	auto GetType() const { return type; }
 
 	template<typename Func>
 	auto AccessToViewList(Func func) {
@@ -33,7 +35,7 @@ class Client : public Object {
 	std::wstring gameID;
 
 public:
-	Client(unsigned int id, SOCKET s, Color c, short x, short y, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, Object{ id, x, y, c }, gameID{ gameID } {}
+	Client(unsigned int id, SOCKET s, Color c, short x, short y, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, Object{ id, x, y, c, ObjectType::PLAYER }, gameID{ gameID } {}
 	Client(Client&& o) : msgRecon{ std::move(o.msgRecon) }, s{ o.s }, gameID{ std::move(o.gameID) }, Object{ std::move(o) } { o.s = 0; }
 
 	auto& GetMessageConstructor() { return msgRecon; }

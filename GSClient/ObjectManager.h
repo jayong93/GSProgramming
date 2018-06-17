@@ -15,17 +15,18 @@ private:
 	short x = 0, y = 0;
 	COLORREF color = RGB(255, 255, 255);
 	Chat chat;
+	ObjectType type;
 	std::mutex lock;
 
 public:
 	Object() {}
-	Object(unsigned int id, int x, int y, const Color& color) : id{ id }, x(x), y(y), color{ RGB(color.r, color.g, color.b) } {}
-	Object(int x, int y, const Color& color) : Object{ 0,x,y,color } {}
+	Object(unsigned int id, int x, int y, const Color& color, ObjectType type) : id{ id }, x(x), y(y), color{ RGB(color.r, color.g, color.b) }, type{ type } {}
 
 	void SetPos(short x, short y) { std::unique_lock<std::mutex> lg{ lock }; this->x = x; this->y = y; }
 	auto GetPos() { std::unique_lock<std::mutex> lg{ lock }; return std::make_tuple(x, y); }
 	auto GetColor() const { return color; }
 	auto GetID() const { return id; }
+	auto GetType() const { return type; }
 
 	template<typename Func>
 	auto AccessToChat(Func func) {
