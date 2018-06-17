@@ -6,6 +6,9 @@
 #define IDC_IPADDRESS1                  1001
 #define IDC_ID                          1002
 #define IDC_EDIT_ID                     1002
+#define IDC_NORMAL_BTN                  1005
+#define IDC_BTN_NORMAL                  1005
+#define IDC_BTN_HOTSPOT                 1006
 
 // Next default values for new objects
 // 

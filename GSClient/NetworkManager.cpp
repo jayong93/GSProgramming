@@ -7,9 +7,10 @@
 void NetworkManager::SendNetworkMessage(int id, MsgBase & msg)
 {
 	auto locked = global.objManager.GetUniqueCollection();
+	auto& objMap = locked.data;
 
-	auto it = locked->find(id);
-	if (it == locked->end()) return;
+	auto it = objMap.find(id);
+	if (it == objMap.end()) return;
 	auto& client = *reinterpret_cast<Client*>(it->second.get());
 
 	auto eov = new ExtOverlapped{ client.s, msg };
