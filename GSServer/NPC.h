@@ -3,7 +3,7 @@
 #include "LuaModule.h"
 #include "NPCState.h"
 
-enum class AttackType {PEACEFUL, AGGRESSIVE};
+enum class AttackType { PEACEFUL, AGGRESSIVE };
 
 class NPC : public HPObject {
 public:
@@ -50,6 +50,7 @@ private:
 };
 
 using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase>;
+using ARangeMonster = HardcodedNPC<ObjectType::RANGE, AttackType::AGGRESSIVE, RangeIdle, RangeChase>;
 
 class AI_NPC : public NPC {
 public:
