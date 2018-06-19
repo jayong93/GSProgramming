@@ -62,6 +62,7 @@ class Client : public HPObject {
 	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
 	std::wstring gameID;
+	unsigned int level;
 
 public:
 	Client(unsigned int id, SOCKET s, const Color& c, short x, short y, int hp, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID } {}
@@ -70,6 +71,17 @@ public:
 	auto& GetMessageConstructor() { return msgRecon; }
 	auto GetSocket() const { return s; }
 	auto& GetGameID() const { return gameID; }
+	auto GetLevel() { ULock lg{ lock }; return level; }
+	auto SetLevel(unsigned int lv) {
+		ULock lg{ lock };
+		level = lv;
+		return level;
+	}
+	auto LevelUp(unsigned int num) {
+		ULock lg{ lock };
+		level += num;
+		return level;
+	}
 };
 
 class ObjectManager {

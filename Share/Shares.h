@@ -3,7 +3,7 @@
 #include <cassert>
 
 enum class MsgTypeCS { NONE, CS_MOVE_UP, CS_MOVE_DOWN, CS_MOVE_LEFT, CS_MOVE_RIGHT, CS_CHAT, CS_TELEPORT };
-enum class MsgTypeSC { NONE, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT, SC_GIVE_ID, SC_DETAIL_DATA, SC_SET_HP, SC_SET_MAX_HP };
+enum class MsgTypeSC { NONE, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT, SC_GIVE_ID, SC_DETAIL_DATA, SC_SET_HP, SC_SET_MAX_HP, SC_CHANGE_LEVEL };
 enum class ConnectionType { NORMAL, HOTSPOT };
 enum class ObjectType { OBJECT, PLAYER, MELEE, RANGE };
 
@@ -98,5 +98,12 @@ struct MsgSetMaxHP : public MsgBase {
 	int maxHP;
 
 	MsgSetMaxHP(unsigned int id, int maxHP) : MsgBase{ sizeof(MsgSetMaxHP), MsgTypeSC::SC_SET_MAX_HP }, id{ id }, maxHP{ maxHP } {}
+};
+
+struct MsgChangeLevel : public MsgBase {
+	unsigned int id;
+	int level;
+
+	MsgChangeLevel(unsigned int id, int level) : MsgBase{ sizeof(MsgChangeLevel), MsgTypeSC::SC_CHANGE_LEVEL }, id{ id }, level{ level } {}
 };
 #pragma pack(pop)
