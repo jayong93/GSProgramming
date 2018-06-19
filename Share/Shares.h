@@ -133,10 +133,11 @@ struct MsgOtherChat : public MsgBase {
 struct MsgOtherStatChange : public MsgBase {
 	WORD id;
 	WORD hp;
+	WORD maxHP;
 	BYTE level;
 	DWORD exp;
 
-	MsgOtherStatChange(WORD id, WORD hp, BYTE level, DWORD exp) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_STAT_CHANGE }, id{ id }, hp{ hp }, level{ level }, exp{ exp } {}
+	MsgOtherStatChange(WORD id, WORD hp, WORD maxHP, BYTE level, DWORD exp) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_STAT_CHANGE }, id{ id }, hp{ hp }, maxHP{ maxHP }, level { level }, exp{ exp } {}
 };
 
 struct MsgTeleport : public MsgBase {

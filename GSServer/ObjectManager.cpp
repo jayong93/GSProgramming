@@ -171,7 +171,7 @@ void Object::SendPutMessage(SOCKET s)
 void HPObject::SendPutMessage(SOCKET s)
 {
 	Object::SendPutMessage(s);
-	networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), 0, 0 });
+	networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), GetMaxHP(), 0, 0 });
 }
 
 void Client::SendPutMessage(SOCKET s)
@@ -181,6 +181,6 @@ void Client::SendPutMessage(SOCKET s)
 		networkManager.SendNetworkMessage(s, *new MsgStatChange{ GetHP(), GetLevel(), GetExp() });
 	}
 	else {
-		networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), GetLevel(), GetExp() });
+		networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), GetMaxHP(), GetLevel(), GetExp() });
 	}
 }
