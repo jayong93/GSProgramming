@@ -22,14 +22,14 @@ int main() {
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
-	for (auto i = 0; i < MAX_NPC/2; ++i) {
+	for (auto i = 0; i < MAX_NPC / 2; ++i) {
 		auto id = npcNextId++;
 		auto npc = std::unique_ptr<Object>{ new AMeleeMonster(id, posRange(rndGen), posRange(rndGen), 50, MeleeIdle{2, 10}) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));
 	}
-	for (auto i = MAX_NPC/2; i < MAX_NPC; ++i) {
+	for (auto i = MAX_NPC / 2; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
 		auto npc = std::unique_ptr<Object>{ new ARangeMonster(id, posRange(rndGen), posRange(rndGen), 30, RangeIdle{5, 20, 5}) };
 		auto[x, y] = npc->GetPos();
@@ -82,7 +82,7 @@ void RemoveClient(Client* client)
 			}
 		});
 	});
-	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->GetGameID(), x, y });
+	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->GetDBData() });
 	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
 
@@ -103,6 +103,7 @@ void AcceptThreadFunc()
 	sockaddr clientAddr;
 	int addrLen = sizeof(clientAddr);
 
+	std::unordered_set<std::wstring> loginedNames;
 	int retval;
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
@@ -115,8 +116,24 @@ void AcceptThreadFunc()
 		} while (retval < sizeof(name));
 
 		if (retval == 0 || lstrlen(name) == 0) continue;
-		auto result = [clientSock](SQLWCHAR name[], SQLSMALLINT xPos, SQLSMALLINT yPos) {
-			AddNewClient(clientSock, name, xPos, yPos);
+		auto result = [&loginedNames, clientSock](bool result, const DBData& data) {
+			const auto&[name, xPos, yPos, lv, hp, exp] = data;
+
+			if (result && loginedNames.insert(name).second) {
+				AddNewClient(clientSock, name.c_str(), xPos, yPos);
+			}
+			else if (!result) {
+				loginedNames.insert(name);
+				WORD newX, newY;
+				newX = posRange(rndGen); newY = posRange(rndGen);
+				auto newClientData = AddNewClient(clientSock, name.c_str(), newX, newY);
+				if (newClientData) {
+					dbMsgQueue.Push(new DBAddUser{ hstmt, *newClientData });
+				}
+			}
+			else {
+				networkManager.SendNetworkMessage(clientSock, *new MsgLoginFail);
+			}
 		};
 
 		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
@@ -212,14 +229,15 @@ void InitDB()
 	}
 }
 
-void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
+std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
 {
 	int retval{ 0 };
-	unsigned int clientId{ nextId++ };
+	WORD clientId(nextId++);
 
 	if (clientId >= MAX_PLAYER) {
 		printf_s("too many clients! no more clients can join to the server\n");
-		return;
+		networkManager.SendNetworkMessage(sock, *new MsgLoginFail);
+		return {};
 	}
 
 	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
@@ -234,12 +252,15 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 		map.emplace(clientId, std::move(newClientPtr));
 	});
 
+	DBData data = newClient.GetDBData();
+
 	auto[x, y] = newClient.GetPos();
 	sectorManager.AddToSector(clientId, x, y);
 	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
-	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgLoginOK{ clientId, x, y, newClient.GetHP(), newClient.GetLevel(), newClient.GetExp() });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgSetColor{ clientId, newClient.GetColor() });
 	newClient.SendPutMessage(newClient.GetSocket());
 
 	objManager.Access([clientId](auto& map) {
@@ -247,5 +268,7 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 	});
 
 	networkManager.RecvNetworkMessage(newClient);
+
+	return data;
 }
 

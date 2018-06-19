@@ -24,6 +24,8 @@ void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCod
 }
 
 const std::wstring DBSetUserData::queryStr{ L"EXEC dbo.set_user_data " };
+// TODO: DB에 저장된 쿼리 추가하기.
+const std::wstring DBAddUser::queryStr{ L"EXEC dbo.add_user " };
 
 bool DBQueryBase::execute()
 {

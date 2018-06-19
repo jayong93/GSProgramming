@@ -17,6 +17,46 @@ protected:
 	unsigned int damage, exp;
 };
 
+template<typename HardCoded, typename Condition>
+void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, unsigned int damage, unsigned int target) {
+	auto it = map.find(target);
+	if (map.end() == it) return;
+
+	auto& player = *(Client*)it->second.get();
+	const auto[px, py] = player.GetPos();
+	const auto[myX, myY] = npc.GetPos();
+	const auto xOffset = px - myX;
+	const auto yOffset = py - myY;
+
+	if (rangeCond(xOffset, yOffset)) {
+		const auto pHP = player.AddHP(-(int)damage);
+		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgStatChange{ pHP, player.GetLevel(), player.GetExp() });
+	}
+	else {
+		// 플레이어 추적
+		auto body = [](auto id, auto xOffset, auto yOffset) {
+			return [=]() {
+				objManager.AccessWithValue(id, [=](auto& obj, auto& map) {
+					obj.Move(xOffset, yOffset);
+					UpdateViewList(obj.GetID(), map);
+				});
+			};
+		};
+		if (abs(xOffset) < abs(yOffset)) {
+			PostEvent(body(npc.GetID(), 0, (yOffset < 0) ? -1 : 1));
+		}
+		else {
+			PostEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0));
+		}
+	}
+	PostTimerEvent(1000, [id{ npc.GetID() }](){
+		objManager.AccessWithValue(id, [](auto& obj, auto& map) {
+			auto& npc = (NPC&)obj;
+			npc.Update(map);
+		});
+	});
+}
+
 struct MeleeIdle : public MonsterStateBase {
 	MeleeIdle(unsigned int damage, unsigned int exp) : MonsterStateBase{ damage, exp } {}
 
@@ -54,48 +94,9 @@ struct MeleeChase : public MonsterStateBase {
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void Update(HardCoded& npc, ObjectMap& map) {
-		auto it = map.find(target);
-		if (map.end() == it) return;
-
-		auto& player = *(Client*)it->second.get();
-		const auto[px, py] = player.GetPos();
-		const auto[myX, myY] = npc.GetPos();
-		if ((abs(px - myX) + abs(py - myY)) <= 1) {
-			const auto pHP = player.AddHP(-(int)damage);
-			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{ player.GetID(), pHP });
-			player.AccessToViewList([&map, &player, pHP](auto& viewList) {
-				for (auto id : viewList) {
-					if (objManager.IsPlayer(id)) {
-						networkManager.SendNetworkMessageWithID(id, *new MsgSetHP{ player.GetID(), pHP }, map);
-					}
-				}
-			});
-		}
-		else {
-			// 플레이어 추적
-			auto body = [](auto id, auto xOffset, auto yOffset) {
-				return [=]() {
-					objManager.AccessWithValue(id, [=](auto& obj, auto& map) {
-						obj.Move(xOffset, yOffset);
-						UpdateViewList(obj.GetID(), map);
-					});
-				};
-			};
-			const auto xOffset = px - myX;
-			const auto yOffset = py - myY;
-			if (abs(xOffset) < abs(yOffset)) {
-				PostEvent(body(npc.GetID(), 0, (yOffset < 0) ? -1 : 1));
-			}
-			else {
-				PostEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0));
-			}
-		}
-		PostTimerEvent(1000, [id{ npc.GetID() }](){
-			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
-				auto& npc = (NPC&)obj;
-				npc.Update(map);
-			});
-		});
+		MonsterChaseUpdate(npc, map, [](auto xOffset, auto yOffset) {
+			return abs(xOffset) + abs(yOffset) <= 1;
+		}, damage, target);
 	}
 };
 
@@ -136,49 +137,9 @@ struct RangeChase : public MonsterStateBase {
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void Update(HardCoded& npc, ObjectMap& map) {
-		auto it = map.find(target);
-		if (map.end() == it) return;
-
-		auto& player = *(Client*)it->second.get();
-		const auto[px, py] = player.GetPos();
-		const auto[myX, myY] = npc.GetPos();
-		const auto xOffset = px - myX;
-		const auto yOffset = py - myY;
-
-		if (pow(xOffset, 2) + pow(yOffset, 2) <= pow(range, 2)) {
-			const auto pHP = player.AddHP(-(int)damage);
-			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{ player.GetID(), pHP });
-			player.AccessToViewList([&map, &player, pHP](auto& viewList) {
-				for (auto id : viewList) {
-					if (objManager.IsPlayer(id)) {
-						networkManager.SendNetworkMessageWithID(id, *new MsgSetHP{ player.GetID(), pHP }, map);
-					}
-				}
-			});
-		}
-		else {
-			// 플레이어 추적
-			auto body = [](auto id, auto xOffset, auto yOffset) {
-				return [=]() {
-					objManager.AccessWithValue(id, [=](auto& obj, auto& map) {
-						obj.Move(xOffset, yOffset);
-						UpdateViewList(obj.GetID(), map);
-					});
-				};
-			};
-			if (abs(xOffset) < abs(yOffset)) {
-				PostEvent(body(npc.GetID(), 0, (yOffset < 0) ? -1 : 1));
-			}
-			else {
-				PostEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0));
-			}
-		}
-		PostTimerEvent(1000, [id{ npc.GetID() }](){
-			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
-				auto& npc = (NPC&)obj;
-				npc.Update(map);
-			});
-		});
+		MonsterChaseUpdate(npc, map, [range{ this->range }](auto xOffset, auto yOffset) {
+			return pow(xOffset, 2) + pow(yOffset, 2) <= pow(range, 2);
+		}, damage, target);
 	}
 
 private:

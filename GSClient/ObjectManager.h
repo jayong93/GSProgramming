@@ -12,19 +12,21 @@ struct Chat {
 // 클라이언트에서 Object에 대한 접근은 모두 objectManager에서 이루어지기 때문에 object에는 lock이 필요 없음.
 struct Object {
 private:
-	unsigned int id = 0;
-	short x = 0, y = 0;
+	WORD id = 0;
+	WORD x = 0, y = 0;
 	COLORREF color = RGB(255, 255, 255);
 	Chat chat;
-	int hp = 0;
-	int maxHP = 0;
+	WORD hp = 0;
+	WORD maxHP = 0;
 	ObjectType type;
+	BYTE level;
+	DWORD exp;
 
 public:
 	Object() {}
-	Object(unsigned int id, int x, int y) : id{ id }, x(x), y(y){}
+	Object(WORD id, WORD x, WORD y) : id{ id }, x(x), y(y){}
 
-	void SetPos(short x, short y) { this->x = x; this->y = y; }
+	void SetPos(WORD x, WORD y) { this->x = x; this->y = y; }
 	auto GetPos() { return std::make_tuple(x, y); }
 	auto GetColor() const { return color; }
 	void SetColor(const Color& color) { this->color = RGB(color.r, color.g, color.b); }
@@ -32,9 +34,9 @@ public:
 	auto GetType() const { return type; }
 	void SetType(ObjectType type) { this->type = type; }
 	auto GetHP() const { return hp; }
-	void SetHP(int hp) { this->hp = hp; }
+	void SetHP(WORD hp) { this->hp = hp; }
 	auto GetMaxHP() const { return maxHP; }
-	void SetMaxHP(int maxHP) { this->maxHP = maxHP; }
+	void SetMaxHP(WORD maxHP) { this->maxHP = maxHP; }
 	auto GetRelativeRect(const int leftTopX, const int leftTopY) const {
 		RECT rect;
 		const auto relativeX = x - leftTopX;
@@ -45,6 +47,18 @@ public:
 		rect.bottom = (relativeY + 1) * CELL_H;
 		return rect;
 	}
+	auto GetLevel() { return level; }
+	auto SetLevel(BYTE lv) {
+		level = lv;
+		return level;
+	}
+	auto LevelUp(BYTE num) {
+		level += num;
+		return level;
+	}
+	auto GetExp() { return exp; }
+	auto SetExp(DWORD exp) { this->exp = exp; return exp; }
+	auto ExpUp(DWORD delta) { this->exp += delta; return this->exp; }
 
 	template<typename Func>
 	auto AccessToChat(Func func) {
@@ -56,14 +70,14 @@ struct Client {
 private:
 	MsgReconstructor<ClientMsgHandler> msgRecon;
 	SOCKET s;
-	unsigned int id = 0;
+	WORD id = 0;
 
 public:
 	Client(SOCKET s) : msgRecon{ 100, ClientMsgHandler{*this} }, s{ s } {}
 	auto GetSocket() const { return s; }
 	auto& GetMessageConstructor() { return msgRecon; }
 	auto GetID() const { return id; }
-	void SetID(unsigned int id) { this->id = id; }
+	void SetID(WORD id) { this->id = id; }
 };
 
 class ObjectManager {
@@ -72,10 +86,10 @@ public:
 
 	bool Insert(std::unique_ptr<Object>&& ptr);
 	bool Insert(Object& o);
-	bool Remove(unsigned int id);
+	bool Remove(WORD id);
 
 	template <typename Func>
-	bool Update(unsigned int id, Func func) {
+	bool Update(WORD id, Func func) {
 		std::unique_lock<std::mutex> lg{ lock };
 		auto it = data.find(id);
 		if (data.end() == it) return false;
@@ -89,7 +103,7 @@ public:
 		return func(data);
 	}
 
-	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
+	static bool IsPlayer(WORD id) { return id < MAX_PLAYER; }
 
 	ObjectManager(const ObjectManager&) = delete;
 	ObjectManager& operator=(const ObjectManager&) = delete;

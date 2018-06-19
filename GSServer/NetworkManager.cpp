@@ -61,24 +61,22 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	if (nullptr == client) return;
 	auto rType = (MsgTypeCS)msg.type;
 	switch (rType) {
-	case MsgTypeCS::CS_MOVE_LEFT:
-	case MsgTypeCS::CS_MOVE_RIGHT:
-	case MsgTypeCS::CS_MOVE_UP:
-	case MsgTypeCS::CS_MOVE_DOWN:
+	case MsgTypeCS::MOVE:
 	{
+		auto& rMsg = (MsgInputMove&)msg;
 		short dx{ 0 }, dy{ 0 };
-		switch (rType) {
-		case MsgTypeCS::CS_MOVE_LEFT:
-			dx = -1;
-			break;
-		case MsgTypeCS::CS_MOVE_RIGHT:
-			dx = 1;
-			break;
-		case MsgTypeCS::CS_MOVE_UP:
+		switch (rMsg.direction) {
+		case 0: // UP
 			dy = -1;
 			break;
-		case MsgTypeCS::CS_MOVE_DOWN:
+		case 1: // DOWN
 			dy = 1;
+			break;
+		case 2: //LEFT
+			dx = -1;
+			break;
+		case 3: // RIGHT
+			dx = 1;
 			break;
 		default:
 			return;
@@ -87,21 +85,21 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgSetPosition( id, newX, newY ));
 
 		objManager.Access([client{ this->client }, clientId{ id }](auto& map) {
 			UpdateViewList(clientId, map);
 		});
 	}
 	break;
-	case MsgTypeCS::CS_TELEPORT:
+	case MsgTypeCS::TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
 		client->SetPos(rMsg.x, rMsg.y);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgSetPosition( id, newX, newY ));
 
 		objManager.Access([id](auto& map) {
 			UpdateViewList(id, map);
