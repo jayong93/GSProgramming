@@ -5,11 +5,6 @@
 #include "NPC.h"
 #include "Globals.h"
 
-std::random_device rd;
-std::mt19937_64 rndGen{ rd() };
-std::uniform_int_distribution<int> posRange{ 0, min(BOARD_W, BOARD_H) - 1 };
-std::uniform_int_distribution<int> colorRange{ 0, 255 };
-
 void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
 
 int main() {
@@ -20,14 +15,14 @@ int main() {
 
 	iocpObject = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 
-	for (auto i = 0; i < MAX_NPC/2; ++i) {
+	for (auto i = 0; i < MAX_NPC / 2; ++i) {
 		auto id = npcNextId++;
 		auto npc = std::unique_ptr<Object>{ new AMeleeMonster(id, posRange(rndGen), posRange(rndGen), 50, MeleeIdle{2, 10}) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));
 	}
-	for (auto i = MAX_NPC/2; i < MAX_NPC; ++i) {
+	for (auto i = MAX_NPC / 2; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
 		auto npc = std::unique_ptr<Object>{ new ARangeMonster(id, posRange(rndGen), posRange(rndGen), 30, RangeIdle{5, 20, 5}) };
 		auto[x, y] = npc->GetPos();
@@ -55,30 +50,17 @@ void RemoveClient(Client* client)
 	closesocket(client->GetSocket());
 	std::unique_ptr<Object> localClient;
 	objManager.Access([client, &localClient](auto& map) {
+		UpdateViewList(client->GetID(), map);
 		auto it = map.find(client->GetID());
 		if (map.end() == it) return;
 		localClient.swap(it->second);
 		map.erase(it);
 	});
 	if (!localClient) return;
+	client->SetDisable(true);
 	const auto[x, y] = client->GetPos();
 	sectorManager.RemoveFromSector(client->GetID(), x, y);
 
-	objManager.Access([client](auto& map) {
-		client->AccessToViewList([client, &map](auto& viewList) {
-			for (auto& id : viewList) {
-				auto it = map.find(id);
-				if (it == map.end()) continue;
-				const auto removedCount = it->second->AccessToViewList([id{ client->GetID() }](auto& viewList){
-					return viewList.erase(id);
-				});
-				if (removedCount == 1 && objManager.IsPlayer(id)) {
-					auto& player = *reinterpret_cast<Client*>(it->second.get());
-					networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
-				}
-			}
-		});
-	});
 	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
 
@@ -103,11 +85,8 @@ void AcceptThreadFunc()
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
-
-		auto xPos = posRange(rndGen);
-		auto yPos = posRange(rndGen);
-		AddNewClient(clientSock, L"", xPos, yPos);
-
+		CreateIoCompletionPort((HANDLE)clientSock, iocpObject, nextId, 0);
+		networkManager.RecvNetworkMessage(*new MessageReceiver{ clientSock });
 	}
 
 	shutdown(sock, SD_BOTH);
@@ -153,17 +132,18 @@ void TimerThreadFunc()
 }
 
 
-void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
+std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos, MessageReceiver& receiver)
 {
 	int retval{ 0 };
-	unsigned int clientId{ nextId++ };
+	WORD clientId(nextId++);
 
 	if (clientId >= MAX_PLAYER) {
 		printf_s("too many clients! no more clients can join to the server\n");
-		return;
+		networkManager.SendNetworkMessage(sock, *new MsgLoginFail);
+		return {};
 	}
 
-	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
+	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, &receiver, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
 
 	objManager.Access([sock, clientId, &newClientPtr](auto& map) {
@@ -175,18 +155,20 @@ void AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPo
 		map.emplace(clientId, std::move(newClientPtr));
 	});
 
+	DBData data = newClient.GetDBData();
+
 	auto[x, y] = newClient.GetPos();
 	sectorManager.AddToSector(clientId, x, y);
-	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
-	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgGiveID{ clientId });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgLoginOK{ clientId, x, y, newClient.GetHP(), newClient.GetLevel(), newClient.GetExp() });
+	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgSetColor{ clientId, newClient.GetColor() });
 	newClient.SendPutMessage(newClient.GetSocket());
 
 	objManager.Access([clientId](auto& map) {
 		UpdateViewList(clientId, map);
 	});
 
-	networkManager.RecvNetworkMessage(newClient);
+	return data;
 }
 

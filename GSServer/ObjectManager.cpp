@@ -22,14 +22,14 @@ bool ObjectManager::Insert(Object & o)
 	return result.second;
 }
 
-bool ObjectManager::Remove(unsigned int id)
+bool ObjectManager::Remove(WORD id)
 {
 	std::unique_lock<std::mutex> lg{ this->lock };
 	if (1 == this->data.erase(id)) return true;
 	return false;
 }
 
-std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id, ObjectMap & map)
+std::unordered_set<WORD> ObjectManager::GetNearList(WORD id, ObjectMap & map)
 {
 	return ObjectManager::GetNearList(id, map, [](Object& me, Object& other) {
 		auto[myX, myY] = me.GetPos();
@@ -38,7 +38,7 @@ std::unordered_set<unsigned int> ObjectManager::GetNearList(unsigned int id, Obj
 	});
 }
 
-void UpdateViewList(unsigned int id, ObjectMap& map)
+void UpdateViewList(WORD id, ObjectMap& map)
 {
 	auto nearList = objManager.GetNearList(id, map);
 
@@ -46,6 +46,31 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 	auto it = map.find(id);
 	if (map.end() == it) return;
 	auto& me = *it->second;
+
+	if (me.IsDisabled()) {
+		std::vector<WORD> npcList;
+		me.AccessToViewList([id{ me.GetID() }, &map, &npcList](auto& viewList) {
+			for (auto cid : viewList) {
+				auto& obj = *map[cid];
+				if (obj.GetType() == ObjectType::PLAYER) {
+					networkManager.SendNetworkMessage(((Client&)obj).GetSocket(), *new MsgRemoveObject{ id });
+				}
+				else if (obj.GetType() != ObjectType::OBJECT) {
+					npcList.emplace_back(cid);
+				}
+				obj.AccessToViewList([id](auto& viewList) {
+					viewList.erase(id);
+				});
+			}
+			viewList.clear();
+		});
+
+		for (auto id : npcList) {
+			auto& npc = (NPC&)*map[id];
+			npc.PlayerLeave((Client&)me, map);
+		}
+		return;
+	}
 
 	for (auto& otherID : nearList) {
 		const bool isPlayer = objManager.IsPlayer(otherID);
@@ -73,21 +98,21 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 		{
 			if (!amIInserted) {
 				auto[x, y] = me.GetPos();
-				networkManager.SendNetworkMessage(((Client&)other).GetSocket(), *new MsgMoveObject{ me.GetID(), x, y });
+				networkManager.SendNetworkMessage(((Client&)other).GetSocket(), *new MsgSetPosition{ me.GetID(), x, y });
 			}
 			else {
 				auto[x, y] = me.GetPos();
 				me.SendPutMessage(((Client&)other).GetSocket());
 			}
 		}
-		else {
+		else if (other.GetType() != ObjectType::OBJECT) {
 			auto& npc = (NPC&)other;
 			// 둘 다 NPC면 여기까지 도달할 수 없기 때문에 강제 캐스팅 해도 안전.
 			npc.PlayerMove((Client&)me, map);
 		}
 	}
 
-	std::vector<unsigned int> removedList;
+	std::vector<WORD> removedList;
 	me.AccessToViewList([&removedList, &nearList](auto& viewList) {
 		std::copy_if(viewList.begin(), viewList.end(), std::back_inserter(removedList), [&](auto id) {
 			return nearList.find(id) == nearList.end();
@@ -113,7 +138,7 @@ void UpdateViewList(unsigned int id, ObjectMap& map)
 			}
 		});
 
-		if (amIPlayer && !isPlayer) {
+		if (amIPlayer && !isPlayer && other->GetType() != ObjectType::OBJECT) {
 			auto& npc = *(NPC*)other;
 			npc.PlayerLeave((Client&)me, map);
 		}
@@ -152,8 +177,8 @@ void Object::SetPos(short x, short y) {
 
 void Object::SendPutMessage(SOCKET s)
 {
-	unsigned int id;
-	short x, y;
+	WORD id;
+	WORD x, y;
 	Color* color;
 	ObjectType type;
 	{
@@ -164,19 +189,23 @@ void Object::SendPutMessage(SOCKET s)
 		color = &this->color;
 		type = this->type;
 	}
-	networkManager.SendNetworkMessage(s, *new MsgPutObject{id, x, y});
-	networkManager.SendNetworkMessage(s, *new MsgDetailData{id, *color, type});
+	networkManager.SendNetworkMessage(s, *new MsgAddObject{ id, type, x, y });
+	networkManager.SendNetworkMessage(s, *new MsgSetColor{ id, *color });
 }
 
 void HPObject::SendPutMessage(SOCKET s)
 {
 	Object::SendPutMessage(s);
-	MsgBase* msg{ nullptr }, *maxMsg{ nullptr };
-	{
-		ULock lg{ lock };
-		msg = new MsgSetHP{ this->GetID(), hp };
-		maxMsg = new MsgSetMaxHP{ this->GetID(), maxHP };
+	networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), GetMaxHP(), 0, 0 });
+}
+
+void Client::SendPutMessage(SOCKET s)
+{
+	Object::SendPutMessage(s);
+	if (this->receiver->s == s) {
+		networkManager.SendNetworkMessage(s, *new MsgStatChange{ GetHP(), GetLevel(), GetExp() });
 	}
-	networkManager.SendNetworkMessage(s, *msg);
-	networkManager.SendNetworkMessage(s, *maxMsg);
+	else {
+		networkManager.SendNetworkMessage(s, *new MsgOtherStatChange{ GetID(), GetHP(), GetMaxHP(), GetLevel(), GetExp() });
+	}
 }
