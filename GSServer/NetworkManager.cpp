@@ -124,6 +124,28 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		});
 	}
 	break;
+	case MsgTypeCS::ATTACK:
+	{
+		auto& rMsg{ (MsgAttack&)msg };
+		auto& client = receiver.owner;
+
+		auto monsterList = objManager.Access([&client](ObjectMap& map) {
+			return objManager.GetNearList(client->GetID(), map, [](Object& me, Object& other) {
+				const auto[myX, myY] = me.GetPos();
+				const auto[ox, oy] = other.GetPos();
+				return (std::abs(myX - ox) + std::abs(myY - oy)) <= 1 && (other.GetType() != ObjectType::OBJECT) && (other.GetType() != ObjectType::PLAYER);
+			});
+		});
+
+		objManager.Access([client, &monsterList](ObjectMap& map) {
+			for (auto id : monsterList) {
+				auto it = map.find(id); if (map.end() == it) continue;
+				auto& npc = *(NPC*)it->second.get();
+				npc.Attacked(*client, map);
+			}
+		});
+	}
+	break;
 	case MsgTypeCS::TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;

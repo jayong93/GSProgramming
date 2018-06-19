@@ -43,10 +43,10 @@ public:
 		this->hp = min(this->maxHP, max(0, this->hp));
 		return this->hp;
 	}
-	WORD AddHP(WORD diff) {
+	WORD AddHP(short diff) {
 		ULock lg{ lock };
-		this->hp += diff;
-		this->hp = min(this->maxHP, max(0, this->hp));
+		auto chp = (int)this->hp + diff;
+		this->hp = min(this->maxHP, max(0, chp));
 		return this->hp;
 	}
 	auto GetMaxHP() { ULock lg{ lock }; return maxHP; }
@@ -63,9 +63,10 @@ class Client : public HPObject {
 	std::wstring gameID;
 	BYTE level;
 	DWORD exp;
+	DWORD nextExp;
 
 public:
-	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 } { r->owner = this; }
+	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 }, nextExp{ 100 } { r->owner = this; }
 	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, const wchar_t* gameID) : Client{ id, r, c, x, y, 100, gameID } {}
 	Client(WORD id, MessageReceiver* r, const Color& c, const DBData& data) : Client{ id, r, c, 0, 0, L"" } { SetDBData(data); }
 
@@ -78,14 +79,20 @@ public:
 		level = lv;
 		return level;
 	}
+	static auto CalcNextExp(BYTE level) {
+		return level * 100;
+	}
 	auto LevelUp(BYTE num) {
+		SetHP(GetMaxHP());
 		ULock lg{ lock };
 		level += num;
-		return level;
+		nextExp = CalcNextExp(level);
+
+		return this->exp >= nextExp;
 	}
 	auto GetExp() { ULock lg{ lock }; return exp; }
 	auto SetExp(DWORD exp) { ULock lg{ lock }; this->exp = exp; return exp; }
-	auto ExpUp(DWORD delta) { ULock lg{ lock }; this->exp += delta; return this->exp; }
+	auto ExpUp(DWORD delta) { ULock lg{ lock }; this->exp += delta; return this->exp >= nextExp; }
 	DBData GetDBData() {
 		const auto[x, y] = GetPos();
 		const auto hp = GetHP();
