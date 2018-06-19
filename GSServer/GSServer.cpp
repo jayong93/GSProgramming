@@ -24,14 +24,14 @@ int main() {
 
 	for (auto i = 0; i < MAX_NPC/2; ++i) {
 		auto id = npcNextId++;
-		auto npc = std::unique_ptr<Object>{ new AMeleeMonster(id, posRange(rndGen), posRange(rndGen), 50) };
+		auto npc = std::unique_ptr<Object>{ new AMeleeMonster(id, posRange(rndGen), posRange(rndGen), 50, MeleeIdle{}) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));
 	}
 	for (auto i = MAX_NPC/2; i < MAX_NPC; ++i) {
 		auto id = npcNextId++;
-		auto npc = std::unique_ptr<Object>{ new ARangeMonster(id, posRange(rndGen), posRange(rndGen), 50) };
+		auto npc = std::unique_ptr<Object>{ new ARangeMonster(id, posRange(rndGen), posRange(rndGen), 50, RangeIdle{5}) };
 		auto[x, y] = npc->GetPos();
 		sectorManager.AddToSector(npc->GetID(), x, y);
 		objManager.Insert(std::move(npc));

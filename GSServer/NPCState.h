@@ -17,8 +17,7 @@ struct StateBase {
 struct MeleeIdle {
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
-		auto next = HardCoded::State{ MeleeChase{player.GetID()} };
-		npc.state = next;
+		npc.state = MeleeChase{player.GetID()};
 		PostEvent([id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
@@ -42,8 +41,7 @@ struct MeleeChase {
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void PlayerLeave(HardCoded& npc, Client& player, ObjectMap& map) {
-		auto next = HardCoded::State{ MeleeIdle{} };
-		npc.state = next;
+		npc.state = MeleeIdle{};
 	}
 	template<typename HardCoded>
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
@@ -95,9 +93,11 @@ struct MeleeChase {
 };
 
 struct RangeIdle {
+	RangeIdle(unsigned int range) : range{ range } {}
+
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = RangeChase{ player.GetID() };
+		npc.state = RangeChase{ player.GetID(), range };
 		PostEvent([id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
@@ -111,18 +111,19 @@ struct RangeIdle {
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void Update(HardCoded& npc, ObjectMap& map) {}
+
+private:
+	unsigned int range;
 };
 
 struct RangeChase {
-	RangeChase(unsigned int id) : target{ id } {}
-	unsigned int target;
+	RangeChase(unsigned int id, unsigned int range) : target{ id }, range{ range } {}
 
-	static constexpr int range = 5;
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void PlayerLeave(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = RangeIdle{};
+		npc.state = RangeIdle{range};
 	}
 	template<typename HardCoded>
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
@@ -172,4 +173,8 @@ struct RangeChase {
 			});
 		});
 	}
+
+private:
+	unsigned int range;
+	unsigned int target;
 };
