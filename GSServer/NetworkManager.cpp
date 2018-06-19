@@ -68,17 +68,18 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgTypeCS::LOGIN:
 	{
 		auto& rMsg{ (MsgLogin&)msg };
-		auto result = [s, &receiver{ this->receiver }](bool result, const DBData& data) {
+		std::wstring gameID{ rMsg.gameID };
+		auto result = [s, &receiver{ this->receiver }, gameID{ std::move(gameID) }](bool result, const DBData& data) {
 			const auto&[name, xPos, yPos, lv, hp, exp] = data;
 
 			if (result && loginedNames.insert(name).second) {
 				AddNewClient(s, name.c_str(), xPos, yPos, receiver);
 			}
 			else if (!result) {
-				loginedNames.insert(name);
+				loginedNames.insert(gameID);
 				WORD newX, newY;
 				newX = posRange(rndGen); newY = posRange(rndGen);
-				auto newClientData = AddNewClient(s, name.c_str(), newX, newY, receiver);
+				auto newClientData = AddNewClient(s, gameID.c_str(), newX, newY, receiver);
 				if (newClientData) {
 					dbMsgQueue.Push(new DBAddUser{ hstmt, *newClientData });
 				}
@@ -88,7 +89,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 			}
 		};
 
-		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, rMsg.gameID, result));
+		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, rMsg.gameID, std::move(result)));
 	}
 	break;
 	case MsgTypeCS::MOVE:
@@ -145,7 +146,8 @@ void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtO
 {
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(ov->receiver->owner);
+		if (ov->receiver->owner)
+			RemoveClient(ov->receiver->owner);
 		return;
 	}
 }
@@ -154,7 +156,8 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtO
 {
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(ov->receiver->owner);
+		if (ov->receiver->owner)
+			RemoveClient(ov->receiver->owner);
 		return;
 	}
 
@@ -173,6 +176,6 @@ ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) :
 
 ExtOverlappedNetwork::ExtOverlappedNetwork(MessageReceiver & receiver) : ExtOverlappedBase{ true }, s{ receiver.s }, receiver{ &receiver } {}
 
-MessageReceiver::MessageReceiver(SOCKET s, size_t size, const ServerMsgHandler & handler) : s{ s }, msgRecon { size, handler } {}
+MessageReceiver::MessageReceiver(SOCKET s, size_t size, const ServerMsgHandler & handler) : s{ s }, msgRecon{ size, handler } {}
 
 MessageReceiver::MessageReceiver(SOCKET s, size_t size) : MessageReceiver{ s, size, ServerMsgHandler{*this} } {}

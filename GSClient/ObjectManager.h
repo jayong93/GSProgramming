@@ -71,13 +71,15 @@ private:
 	MsgReconstructor<ClientMsgHandler> msgRecon;
 	SOCKET s;
 	WORD id = 0;
+	bool connected{ false };
 
 public:
 	Client(SOCKET s) : msgRecon{ 100, ClientMsgHandler{*this} }, s{ s } {}
 	auto GetSocket() const { return s; }
 	auto& GetMessageConstructor() { return msgRecon; }
 	auto GetID() const { return id; }
-	void SetID(WORD id) { this->id = id; }
+	void SetID(WORD id) { this->id = id; connected = true; }
+	bool IsConnected() const { return connected; }
 };
 
 class ObjectManager {

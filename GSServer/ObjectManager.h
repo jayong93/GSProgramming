@@ -65,7 +65,7 @@ class Client : public HPObject {
 	DWORD exp;
 
 public:
-	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 } {}
+	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 } { r->owner = this; }
 	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, const wchar_t* gameID) : Client{ id, r, c, x, y, 100, gameID } {}
 	Client(WORD id, MessageReceiver* r, const Color& c, const DBData& data) : Client{ id, r, c, 0, 0, L"" } { SetDBData(data); }
 

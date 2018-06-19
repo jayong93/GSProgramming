@@ -55,7 +55,7 @@ struct ServerMsgHandler {
 struct MessageReceiver {
 	MsgReconstructor<ServerMsgHandler> msgRecon;
 	SOCKET s;
-	Client* owner;
+	Client* owner{ nullptr };
 
 	MessageReceiver(SOCKET s, size_t size, const ServerMsgHandler& handler);
 	MessageReceiver(SOCKET s, size_t size = 100);

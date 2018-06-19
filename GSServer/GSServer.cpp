@@ -102,6 +102,7 @@ void AcceptThreadFunc()
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
+		CreateIoCompletionPort((HANDLE)clientSock, iocpObject, nextId, 0);
 		networkManager.RecvNetworkMessage(*new MessageReceiver{ clientSock });
 	}
 
@@ -222,7 +223,6 @@ std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos,
 
 	auto[x, y] = newClient.GetPos();
 	sectorManager.AddToSector(clientId, x, y);
-	CreateIoCompletionPort((HANDLE)sock, iocpObject, clientId, 0);
 	printf_s("client(id: %d, x: %d, y: %d) has connected\n", clientId, xPos, yPos);
 
 	networkManager.SendNetworkMessage(newClient.GetSocket(), *new MsgLoginOK{ clientId, x, y, newClient.GetHP(), newClient.GetLevel(), newClient.GetExp() });
