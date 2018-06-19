@@ -63,7 +63,7 @@ struct MeleeIdle : public MonsterStateBase {
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
 		npc.state = MeleeChase{ damage, exp, player.GetID() };
-		PostEvent([id{ npc.GetID() }](){
+		PostTimerEvent(1000, [id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
 				npc.Update(map);
@@ -106,7 +106,7 @@ struct RangeIdle : public MonsterStateBase {
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
 		npc.state = RangeChase{ damage, exp, player.GetID(), range };
-		PostEvent([id{ npc.GetID() }](){
+		PostTimerEvent(1000, [id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
 				npc.Update(map);
