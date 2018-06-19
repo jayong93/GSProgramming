@@ -3,7 +3,7 @@
 #include "LuaModule.h"
 #include "NPCState.h"
 
-enum class AttackType {PEACEFUL, AGGRESSIVE};
+enum class AttackType { PEACEFUL, AGGRESSIVE };
 
 class NPC : public HPObject {
 public:
@@ -21,7 +21,7 @@ class HardcodedNPC : public NPC {
 public:
 	using State = std::variant<Idle, States...>;
 
-	HardcodedNPC(unsigned int id, short x, short y, int hp) : NPC{ id, x, y, GetColor(), Type, hp }, state{ Idle{} } {}
+	HardcodedNPC(unsigned int id, short x, short y, int hp, Idle&& initState) : NPC{ id, x, y, GetColor(), Type, hp }, state{ std::forward<Idle>(initState) } {}
 
 	virtual void PlayerMove(Client& player, ObjectMap& map) {
 		std::visit([this, &player, &map](auto&& s) {s.PlayerMove(*this, player, map); }, state);
@@ -50,6 +50,7 @@ private:
 };
 
 using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase>;
+using ARangeMonster = HardcodedNPC<ObjectType::RANGE, AttackType::AGGRESSIVE, RangeIdle, RangeChase>;
 
 class AI_NPC : public NPC {
 public:

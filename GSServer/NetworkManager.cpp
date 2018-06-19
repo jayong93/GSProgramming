@@ -30,7 +30,7 @@ void NetworkManager::RecvNetworkMessage(Client& c)
 
 void NetworkManager::Send(ExtOverlappedNetwork & eov)
 {
-	assert(eov.msg, "The send eov has no msg");
+	assert(eov.msg && "The send eov has no msg");
 	WSABUF wb;
 	wb.buf = (char*)eov.msg.get();
 	wb.len = eov.msg->len;
@@ -43,7 +43,7 @@ void NetworkManager::Send(ExtOverlappedNetwork & eov)
 
 void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 {
-	assert(eov.client != nullptr, "The recv eov has no client");
+	assert(eov.client != nullptr && "The recv eov has no client");
 	auto& msgRecon = eov.client->GetMessageConstructor();
 	WSABUF wb;
 	wb.buf = msgRecon.GetBuffer();
