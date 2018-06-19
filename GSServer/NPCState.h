@@ -1,8 +1,9 @@
 #pragma once
 #include "typedef.h"
 
-/*
-struct StateBase {
+struct MonsterStateBase {
+	MonsterStateBase(unsigned int damage, unsigned int exp) : damage{ damage }, exp{ exp } {}
+
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
@@ -11,13 +12,17 @@ struct StateBase {
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void Update(HardCoded& npc, ObjectMap& map) {}
-};
-*/
 
-struct MeleeIdle {
+protected:
+	unsigned int damage, exp;
+};
+
+struct MeleeIdle : public MonsterStateBase {
+	MeleeIdle(unsigned int damage, unsigned int exp) : MonsterStateBase{ damage, exp } {}
+
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = MeleeChase{player.GetID()};
+		npc.state = MeleeChase{ damage, exp, player.GetID() };
 		PostEvent([id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
@@ -33,15 +38,17 @@ struct MeleeIdle {
 	void Update(HardCoded& npc, ObjectMap& map) {}
 };
 
-struct MeleeChase {
-	MeleeChase(unsigned int target) : target{ target } {}
+struct MeleeChase : public MonsterStateBase {
+	MeleeChase(unsigned damage, unsigned exp, unsigned int target) : MonsterStateBase{ damage, exp }, target{ target } {}
 	unsigned int target;
 
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void PlayerLeave(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = MeleeIdle{};
+		if (player.GetID() == target) {
+			npc.state = MeleeIdle{ damage, exp };
+		}
 	}
 	template<typename HardCoded>
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
@@ -54,7 +61,7 @@ struct MeleeChase {
 		const auto[px, py] = player.GetPos();
 		const auto[myX, myY] = npc.GetPos();
 		if ((abs(px - myX) + abs(py - myY)) <= 1) {
-			const auto pHP = player.AddHP(-10);
+			const auto pHP = player.AddHP(-(int)damage);
 			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{ player.GetID(), pHP });
 			player.AccessToViewList([&map, &player, pHP](auto& viewList) {
 				for (auto id : viewList) {
@@ -92,12 +99,12 @@ struct MeleeChase {
 	}
 };
 
-struct RangeIdle {
-	RangeIdle(unsigned int range) : range{ range } {}
+struct RangeIdle : public MonsterStateBase {
+	RangeIdle(unsigned damage, unsigned exp, unsigned int range) : MonsterStateBase{ damage, exp }, range{ range } {}
 
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = RangeChase{ player.GetID(), range };
+		npc.state = RangeChase{ damage, exp, player.GetID(), range };
 		PostEvent([id{ npc.GetID() }](){
 			objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 				auto& npc = (NPC&)obj;
@@ -116,14 +123,14 @@ private:
 	unsigned int range;
 };
 
-struct RangeChase {
-	RangeChase(unsigned int id, unsigned int range) : target{ id }, range{ range } {}
+struct RangeChase : public MonsterStateBase {
+	RangeChase(unsigned damage, unsigned exp, unsigned int id, unsigned int range) : MonsterStateBase{ damage, exp }, target{ id }, range{ range } {}
 
 	template<typename HardCoded>
 	void PlayerMove(HardCoded& npc, Client& player, ObjectMap& map) {}
 	template<typename HardCoded>
 	void PlayerLeave(HardCoded& npc, Client& player, ObjectMap& map) {
-		npc.state = RangeIdle{range};
+		npc.state = RangeIdle{ damage, exp, range };
 	}
 	template<typename HardCoded>
 	void Attacked(HardCoded& npc, Client& player, ObjectMap& map) {}
@@ -139,7 +146,7 @@ struct RangeChase {
 		const auto yOffset = py - myY;
 
 		if (pow(xOffset, 2) + pow(yOffset, 2) <= pow(range, 2)) {
-			const auto pHP = player.AddHP(-5);
+			const auto pHP = player.AddHP(-(int)damage);
 			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgSetHP{ player.GetID(), pHP });
 			player.AccessToViewList([&map, &player, pHP](auto& viewList) {
 				for (auto id : viewList) {
