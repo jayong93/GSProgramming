@@ -96,4 +96,5 @@ public:
 	char* GetBuffer() { return reinterpret_cast<char*>(buf.data() + bufSize); }
 	size_t GetSize() const { return bufMaxLen - bufSize; }
 	void AddSize(size_t size) { bufSize += size; }
+	auto& GetHandler() const { return msgHandler; }
 };

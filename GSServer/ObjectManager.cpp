@@ -177,7 +177,7 @@ void HPObject::SendPutMessage(SOCKET s)
 void Client::SendPutMessage(SOCKET s)
 {
 	Object::SendPutMessage(s);
-	if (this->s == s) {
+	if (this->receiver->s == s) {
 		networkManager.SendNetworkMessage(s, *new MsgStatChange{ GetHP(), GetLevel(), GetExp() });
 	}
 	else {

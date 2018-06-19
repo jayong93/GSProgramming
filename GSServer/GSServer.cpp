@@ -5,11 +5,6 @@
 #include "NPC.h"
 #include "Globals.h"
 
-std::random_device rd;
-std::mt19937_64 rndGen{ rd() };
-std::uniform_int_distribution<int> posRange{ 0, min(BOARD_W, BOARD_H) - 1 };
-std::uniform_int_distribution<int> colorRange{ 0, 255 };
-
 void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
 
 int main() {
@@ -103,40 +98,11 @@ void AcceptThreadFunc()
 	sockaddr clientAddr;
 	int addrLen = sizeof(clientAddr);
 
-	std::unordered_set<std::wstring> loginedNames;
 	int retval;
 	while (true) {
 		auto clientSock = WSAAccept(sock, &clientAddr, &addrLen, nullptr, 0);
 		if (clientSock == INVALID_SOCKET) err_quit_wsa(TEXT("WSAAccept"));
-
-		TCHAR name[MAX_GAME_ID_LEN + 1] = { 0, };
-		int retval{ 0 };
-		do {
-			retval += recv(clientSock, (char*)name, sizeof(name), 0);
-		} while (retval < sizeof(name));
-
-		if (retval == 0 || lstrlen(name) == 0) continue;
-		auto result = [&loginedNames, clientSock](bool result, const DBData& data) {
-			const auto&[name, xPos, yPos, lv, hp, exp] = data;
-
-			if (result && loginedNames.insert(name).second) {
-				AddNewClient(clientSock, name.c_str(), xPos, yPos);
-			}
-			else if (!result) {
-				loginedNames.insert(name);
-				WORD newX, newY;
-				newX = posRange(rndGen); newY = posRange(rndGen);
-				auto newClientData = AddNewClient(clientSock, name.c_str(), newX, newY);
-				if (newClientData) {
-					dbMsgQueue.Push(new DBAddUser{ hstmt, *newClientData });
-				}
-			}
-			else {
-				networkManager.SendNetworkMessage(clientSock, *new MsgLoginFail);
-			}
-		};
-
-		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, name, result));
+		networkManager.RecvNetworkMessage(*new MessageReceiver{ clientSock });
 	}
 
 	shutdown(sock, SD_BOTH);
@@ -229,7 +195,7 @@ void InitDB()
 	}
 }
 
-std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos)
+std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos, unsigned int yPos, MessageReceiver& receiver)
 {
 	int retval{ 0 };
 	WORD clientId(nextId++);
@@ -240,7 +206,7 @@ std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos,
 		return {};
 	}
 
-	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, sock, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
+	auto newClientPtr = std::unique_ptr<Object>(new Client(clientId, &receiver, Color(colorRange(rndGen), colorRange(rndGen), colorRange(rndGen)), xPos, yPos, name));
 	Client& newClient = *reinterpret_cast<Client*>(newClientPtr.get());
 
 	objManager.Access([sock, clientId, &newClientPtr](auto& map) {
@@ -267,7 +233,7 @@ std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos,
 		UpdateViewList(clientId, map);
 	});
 
-	networkManager.RecvNetworkMessage(newClient);
+	networkManager.RecvNetworkMessage(newClient.GetReceiver());
 
 	return data;
 }

@@ -34,7 +34,7 @@ public:
 
 class HPObject : public Object {
 public:
-	HPObject(WORD id, WORD x, WORD y, const Color& color, ObjectType type, unsigned int hp) : Object{ id,x,y,color, type }, hp( hp ), maxHP( hp ) {}
+	HPObject(WORD id, WORD x, WORD y, const Color& color, ObjectType type, unsigned int hp) : Object{ id,x,y,color, type }, hp(hp), maxHP(hp) {}
 
 	auto GetHP() { ULock lg{ lock }; return hp; }
 	int SetHP(WORD hp) {
@@ -59,19 +59,18 @@ private:
 };
 
 class Client : public HPObject {
-	MsgReconstructor<ServerMsgHandler> msgRecon;
-	SOCKET s;
+	std::unique_ptr<MessageReceiver> receiver;
 	std::wstring gameID;
 	BYTE level;
 	DWORD exp;
 
 public:
-	Client(WORD id, SOCKET s, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : msgRecon{ 100, ServerMsgHandler{*this} }, s{ s }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 } {}
-	Client(WORD id, SOCKET s, const Color& c, WORD x, WORD y, const wchar_t* gameID) : Client{ id, s, c, x, y, 100, gameID } {}
-	Client(WORD id, SOCKET s, const Color& c, const DBData& data) : Client{ id, s, c, 0, 0, L"" } { SetDBData(data); }
+	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 } {}
+	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, const wchar_t* gameID) : Client{ id, r, c, x, y, 100, gameID } {}
+	Client(WORD id, MessageReceiver* r, const Color& c, const DBData& data) : Client{ id, r, c, 0, 0, L"" } { SetDBData(data); }
 
-	auto& GetMessageConstructor() { return msgRecon; }
-	auto GetSocket() const { return s; }
+	auto& GetReceiver() const { return *receiver; }
+	auto GetSocket() const { return receiver->s; }
 	auto& GetGameID() const { return gameID; }
 	auto GetLevel() { ULock lg{ lock }; return level; }
 	auto SetLevel(BYTE lv) {

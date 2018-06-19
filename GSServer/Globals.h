@@ -21,4 +21,8 @@ GLOBAL HANDLE iocpObject;
 GLOBAL SQLHENV henv;
 GLOBAL SQLHDBC hdbc;
 GLOBAL SQLHSTMT hstmt;
+GLOBAL std::random_device rd;
+GLOBAL std::mt19937_64 rndGen;
+GLOBAL std::uniform_int_distribution<int> posRange;
+GLOBAL std::uniform_int_distribution<int> colorRange;
 #endif
