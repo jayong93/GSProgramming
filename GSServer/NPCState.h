@@ -105,8 +105,10 @@ void MonsterAttacked(HardCoded& npc, Client& player, ObjectMap& map, unsigned in
 	if (hp <= 0) {
 		npc.SetDisable(true);
 		UpdateViewList(npc.GetID(), map);
-		PostTimerEvent(3000, [id{ npc.GetID() }](){
-			objManager.AccessWithValue(id, [](Object& npc, ObjectMap& map) {
+		PostTimerEvent(30000, [id{ npc.GetID() }](){
+			objManager.AccessWithValue(id, [](Object& obj, ObjectMap& map) {
+				auto& npc = (NPC&)obj;
+				npc.SetHP(npc.GetMaxHP());
 				npc.SetDisable(false);
 				UpdateViewList(npc.GetID(), map);
 			});
