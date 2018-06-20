@@ -47,6 +47,21 @@ void UpdateViewList(WORD id, ObjectMap& map)
 	if (map.end() == it) return;
 	auto& me = *it->second;
 
+	if (me.IsDisabled()) {
+		me.AccessToViewList([id{ me.GetID() }, &map](auto& viewList) {
+			for (auto cid : viewList) {
+				auto& obj = *map[cid];
+				if (obj.GetType() == ObjectType::PLAYER)
+					networkManager.SendNetworkMessage(((Client&)obj).GetSocket(), *new MsgRemoveObject{ id });
+				obj.AccessToViewList([id](auto& viewList) {
+					viewList.erase(id);
+				});
+			}
+			viewList.clear();
+		});
+		return;
+	}
+
 	for (auto& otherID : nearList) {
 		const bool isPlayer = objManager.IsPlayer(otherID);
 

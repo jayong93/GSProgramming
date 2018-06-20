@@ -80,6 +80,7 @@ public:
 	auto GetID() const { return id; }
 	void SetID(WORD id) { this->id = id; connected = true; }
 	bool IsConnected() const { return connected; }
+	void Connect(bool t) { connected = t; }
 };
 
 class ObjectManager {

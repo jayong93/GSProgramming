@@ -9,6 +9,7 @@ class Object {
 	Color color;
 	ObjectType type;
 	std::unordered_set<unsigned int> viewList;
+	bool isDisabled{ false };
 
 protected:
 	std::mutex lock;
@@ -20,9 +21,11 @@ public:
 	void Move(short dx, short dy);
 	void SetPos(short x, short y);
 	auto GetID() const { return id; }
-	auto GetPos() { ULock{ lock }; return std::make_tuple(x, y); }
+	auto GetPos() { ULock lg{ lock }; return std::make_tuple(x, y); }
 	auto& GetColor() const { return color; }
 	auto GetType() const { return type; }
+	auto IsDisabled() { ULock lg{ lock }; return isDisabled; }
+	void SetDisable(bool t) { ULock lg{ lock }; isDisabled = t; }
 	virtual void SendPutMessage(SOCKET s);
 
 	template<typename Func>
@@ -152,6 +155,7 @@ public:
 				auto it = map.find(id);
 				if (it == map.end()) return false;
 				auto o = it->second.get();
+				if (o->IsDisabled()) return false;
 				return pred(*obj, *o);
 			});
 		}

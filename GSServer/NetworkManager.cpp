@@ -92,6 +92,11 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		dbMsgQueue.Push(MakeGetUserDataQuery(hstmt, rMsg.gameID, std::move(result)));
 	}
 	break;
+	case MsgTypeCS::LOGOUT:
+	{
+		closesocket(s);
+	}
+	break;
 	case MsgTypeCS::MOVE:
 	{
 		auto& rMsg = (MsgInputMove&)msg;

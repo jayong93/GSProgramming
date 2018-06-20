@@ -17,12 +17,15 @@ protected:
 	unsigned int damage, exp;
 };
 
-template<typename HardCoded, typename Condition>
-void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, unsigned int damage, unsigned int target) {
+template<typename HardCoded, typename Condition, typename IdleState>
+void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, unsigned int damage, unsigned int target, IdleState idle) {
 	auto it = map.find(target);
 	if (map.end() == it) return;
 
 	auto& player = *(Client*)it->second.get();
+
+	if (player.IsDisabled()) npc.state = idle;
+
 	const auto[px, py] = player.GetPos();
 	const auto[myX, myY] = npc.GetPos();
 	const auto xOffset = px - myX;
@@ -31,6 +34,21 @@ void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, u
 	if (rangeCond(xOffset, yOffset)) {
 		const auto pHP = player.AddHP(-(int)damage);
 		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgStatChange{ pHP, player.GetLevel(), player.GetExp() });
+		if (pHP <= 0) {
+			player.SetDisable(true);
+			UpdateViewList(player.GetID(), map);
+			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ player.GetID() });
+
+			PostTimerEvent(3000, [id{ player.GetID() }]() {
+				objManager.AccessWithValue(id, [](Object& player, ObjectMap& map) {
+					auto& client = (Client&)player;
+					client.SetHP(client.GetMaxHP());
+					player.SetDisable(false);
+					client.SendPutMessage(client.GetSocket());
+					UpdateViewList(player.GetID(), map);
+				});
+			});
+		}
 	}
 	else {
 		// 플레이어 추적
@@ -65,15 +83,20 @@ void MonsterAttacked(HardCoded& npc, Client& player, ObjectMap& map, unsigned in
 		Object& obj = *map[id];
 		if (obj.GetType() != ObjectType::PLAYER) continue;
 		auto& client = (Client&)obj;
-		if (hp > 0)
-			networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherStatChange{ npc.GetID(), hp, npc.GetMaxHP(), 0, 0 });
-		else
-			networkManager.SendNetworkMessage(client.GetSocket(), *new MsgRemoveObject{ npc.GetID() });
+		networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherStatChange{ npc.GetID(), hp, npc.GetMaxHP(), 0, 0 });
 	}
 
 
-	// 플레이어 경험치 조절
 	if (hp <= 0) {
+		npc.SetDisable(true);
+		UpdateViewList(npc.GetID(), map);
+		PostTimerEvent(3000, [id{ npc.GetID() }](){
+			objManager.AccessWithValue(id, [](Object& npc, ObjectMap& map) {
+				npc.SetDisable(false);
+				UpdateViewList(npc.GetID(), map);
+			});
+		});
+		// 플레이어 경험치 조절
 		if (player.ExpUp(exp)) {
 			auto playerNearList = objManager.GetNearList(player.GetID(), map);
 			while (player.LevelUp(1)) {
@@ -89,7 +112,6 @@ void MonsterAttacked(HardCoded& npc, Client& player, ObjectMap& map, unsigned in
 				networkManager.SendNetworkMessage(player.GetSocket(), *new MsgStatChange{ pHP, pLV, pEXP });
 			}
 		}
-		map.erase(npc.GetID());
 	}
 }
 
@@ -132,7 +154,7 @@ struct MeleeChase : public MonsterStateBase {
 	void Update(HardCoded& npc, ObjectMap& map) {
 		MonsterChaseUpdate(npc, map, [](auto xOffset, auto yOffset) {
 			return abs(xOffset) + abs(yOffset) <= 1;
-		}, damage, target);
+		}, damage, target, MeleeIdle{ damage, exp });
 	}
 };
 
@@ -175,7 +197,7 @@ struct RangeChase : public MonsterStateBase {
 	void Update(HardCoded& npc, ObjectMap& map) {
 		MonsterChaseUpdate(npc, map, [range{ this->range }](auto xOffset, auto yOffset) {
 			return pow(xOffset, 2) + pow(yOffset, 2) <= pow(range, 2);
-		}, damage, target);
+		}, damage, target, RangeIdle{ damage, exp, range });
 	}
 
 private:
