@@ -53,30 +53,17 @@ void RemoveClient(Client* client)
 	closesocket(client->GetSocket());
 	std::unique_ptr<Object> localClient;
 	objManager.Access([client, &localClient](auto& map) {
+		UpdateViewList(client->GetID(), map);
 		auto it = map.find(client->GetID());
 		if (map.end() == it) return;
 		localClient.swap(it->second);
 		map.erase(it);
 	});
 	if (!localClient) return;
+	client->SetDisable(true);
 	const auto[x, y] = client->GetPos();
 	sectorManager.RemoveFromSector(client->GetID(), x, y);
 
-	objManager.Access([client](auto& map) {
-		client->AccessToViewList([client, &map](auto& viewList) {
-			for (auto& id : viewList) {
-				auto it = map.find(id);
-				if (it == map.end()) continue;
-				const auto removedCount = it->second->AccessToViewList([id{ client->GetID() }](auto& viewList){
-					return viewList.erase(id);
-				});
-				if (removedCount == 1 && objManager.IsPlayer(id)) {
-					auto& player = *reinterpret_cast<Client*>(it->second.get());
-					networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ client->GetID() });
-				}
-			}
-		});
-	});
 	dbMsgQueue.Push(new DBSetUserData{ hstmt, client->GetDBData() });
 	printf_s("client #%d has disconnected\n", localClient->GetID());
 }
@@ -232,8 +219,6 @@ std::optional<DBData> AddNewClient(SOCKET sock, LPCWSTR name, unsigned int xPos,
 	objManager.Access([clientId](auto& map) {
 		UpdateViewList(clientId, map);
 	});
-
-	networkManager.RecvNetworkMessage(newClient.GetReceiver());
 
 	return data;
 }

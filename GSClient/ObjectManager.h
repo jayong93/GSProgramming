@@ -81,6 +81,8 @@ public:
 	void SetID(WORD id) { this->id = id; connected = true; }
 	bool IsConnected() const { return connected; }
 	void Connect(bool t) { connected = t; }
+
+	bool isChatting{ false };
 };
 
 class ObjectManager {

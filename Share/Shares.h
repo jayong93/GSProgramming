@@ -88,7 +88,7 @@ struct MsgSetPosition : public MsgBase {
 struct MsgChat : public MsgBase {
 	wchar_t msg[MAX_CHAT_LEN];
 
-	MsgChat(WORD from, const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::CHAT } {
+	MsgChat(const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::CHAT } {
 		lstrcpynW(this->msg, msg, MAX_CHAT_LEN);
 	}
 };

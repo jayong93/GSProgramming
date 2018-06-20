@@ -95,6 +95,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgTypeCS::LOGOUT:
 	{
 		closesocket(s);
+		RemoveClient(receiver.owner);
 	}
 	break;
 	case MsgTypeCS::MOVE:
@@ -166,6 +167,24 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 				auto& client = (Client&)obj;
 				client.SetAttack(true);
 			});
+		});
+	}
+	break;
+	case MsgTypeCS::CHAT:
+	{
+		auto& rMsg = *(const MsgSendChat*)&msg;
+		auto& client = receiver.owner;
+
+		objManager.Access([&rMsg, id{ client->GetID() }](ObjectMap& map) {
+			for (auto& it : map) {
+				if (it.second->GetType() == ObjectType::PLAYER) {
+					auto& client = (Client&)*it.second;
+					if (id == it.second->GetID())
+						networkManager.SendNetworkMessage(client.GetSocket(), *new MsgChat{ rMsg.chat });
+					else
+						networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherChat{ id, rMsg.chat });
+				}
+			}
 		});
 	}
 	break;

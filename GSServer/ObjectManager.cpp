@@ -48,17 +48,27 @@ void UpdateViewList(WORD id, ObjectMap& map)
 	auto& me = *it->second;
 
 	if (me.IsDisabled()) {
-		me.AccessToViewList([id{ me.GetID() }, &map](auto& viewList) {
+		std::vector<WORD> npcList;
+		me.AccessToViewList([id{ me.GetID() }, &map, &npcList](auto& viewList) {
 			for (auto cid : viewList) {
 				auto& obj = *map[cid];
-				if (obj.GetType() == ObjectType::PLAYER)
+				if (obj.GetType() == ObjectType::PLAYER) {
 					networkManager.SendNetworkMessage(((Client&)obj).GetSocket(), *new MsgRemoveObject{ id });
+				}
+				else if (obj.GetType() != ObjectType::OBJECT) {
+					npcList.emplace_back(cid);
+				}
 				obj.AccessToViewList([id](auto& viewList) {
 					viewList.erase(id);
 				});
 			}
 			viewList.clear();
 		});
+
+		for (auto id : npcList) {
+			auto& npc = (NPC&)*map[id];
+			npc.PlayerLeave((Client&)me, map);
+		}
 		return;
 	}
 
@@ -95,7 +105,7 @@ void UpdateViewList(WORD id, ObjectMap& map)
 				me.SendPutMessage(((Client&)other).GetSocket());
 			}
 		}
-		else {
+		else if (other.GetType() != ObjectType::OBJECT) {
 			auto& npc = (NPC&)other;
 			// 둘 다 NPC면 여기까지 도달할 수 없기 때문에 강제 캐스팅 해도 안전.
 			npc.PlayerMove((Client&)me, map);
@@ -128,7 +138,7 @@ void UpdateViewList(WORD id, ObjectMap& map)
 			}
 		});
 
-		if (amIPlayer && !isPlayer) {
+		if (amIPlayer && !isPlayer && other->GetType() != ObjectType::OBJECT) {
 			auto& npc = *(NPC*)other;
 			npc.PlayerLeave((Client&)me, map);
 		}

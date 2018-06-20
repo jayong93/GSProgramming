@@ -10,6 +10,8 @@ struct Global {
 	HWND mainWin;
 	Client* myInstance = nullptr;
 	TCHAR gameID[MAX_GAME_ID_LEN];
+	TCHAR chatMsg[MAX_CHAT_LEN] = { 0, };
+	size_t chatLen{ 0 };
 };
 
 #ifndef SET_GLOBALS
