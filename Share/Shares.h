@@ -1,5 +1,6 @@
 #pragma once
 #include "MsgReconstructor.h"
+#include <mutex>
 #include <cassert>
 
 enum class MsgTypeCS { NONE, LOGIN, LOGOUT, MOVE, ATTACK, CHAT, TELEPORT };
@@ -17,6 +18,27 @@ constexpr int MAX_CHAT_LEN = 100;
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
 void print_network_error(DWORD errCode);
+
+template <typename T>
+class Locked {
+public:
+	Locked() {}
+	
+	template <typename Func>
+	auto Access(Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		return func(data);
+	}
+
+	T GetClone() {
+		std::unique_lock<std::mutex> lg{ lock };
+		return data;
+	}
+
+private:
+	std::mutex lock;
+	T data;
+};
 
 #pragma pack(push, 1)
 struct Color {
@@ -122,10 +144,11 @@ struct MsgSetColor : public MsgBase {
 };
 
 struct MsgOtherChat : public MsgBase {
-	WORD from;
+	wchar_t from[MAX_GAME_ID_LEN];
 	wchar_t msg[MAX_CHAT_LEN];
 
-	MsgOtherChat(WORD from, const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_CHAT }, from(from) {
+	MsgOtherChat(const wchar_t* from, const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_CHAT } {
+		lstrcpynW(this->from, from, MAX_GAME_ID_LEN);
 		lstrcpynW(this->msg, msg, MAX_CHAT_LEN);
 	}
 };

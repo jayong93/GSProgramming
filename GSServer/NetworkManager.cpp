@@ -179,10 +179,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 			for (auto& it : map) {
 				if (it.second->GetType() == ObjectType::PLAYER) {
 					auto& client = (Client&)*it.second;
-					if (id == it.second->GetID())
-						networkManager.SendNetworkMessage(client.GetSocket(), *new MsgChat{ rMsg.chat });
-					else
-						networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherChat{ id, rMsg.chat });
+					networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherChat{ client.GetGameID().c_str(), rMsg.chat });
 				}
 			}
 		});
