@@ -100,6 +100,7 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 	case MsgTypeCS::MOVE:
 	{
 		auto& rMsg = (MsgInputMove&)msg;
+		if (!receiver.owner->CanMove()) return;
 		short dx{ 0 }, dy{ 0 };
 		switch (rMsg.direction) {
 		case 0: // UP
@@ -127,11 +128,20 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 		objManager.Access([client, clientId{ id }](auto& map) {
 			UpdateViewList(clientId, map);
 		});
+
+		receiver.owner->SetMove(false);
+		PostTimerEvent(1000, [id{ receiver.owner->GetID() }]() {
+			objManager.Update(id, [](Object& obj) {
+				auto& client = (Client&)obj;
+				client.SetMove(true);
+			});
+		});
 	}
 	break;
 	case MsgTypeCS::ATTACK:
 	{
 		auto& rMsg{ (MsgAttack&)msg };
+		if (!receiver.owner->CanAttack()) return;
 		auto& client = receiver.owner;
 
 		auto monsterList = objManager.Access([&client](ObjectMap& map) {
@@ -148,6 +158,14 @@ void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 				auto& npc = *(NPC*)it->second.get();
 				npc.Attacked(*client, map);
 			}
+		});
+
+		receiver.owner->SetAttack(false);
+		PostTimerEvent(1000, [id{ receiver.owner->GetID() }]() {
+			objManager.Update(id, [](Object& obj) {
+				auto& client = (Client&)obj;
+				client.SetAttack(true);
+			});
 		});
 	}
 	break;

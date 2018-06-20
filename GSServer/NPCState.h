@@ -67,7 +67,7 @@ void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, u
 			PostEvent(body(npc.GetID(), (xOffset < 0) ? -1 : 1, 0));
 		}
 	}
-	PostTimerEvent(1000, [id{ npc.GetID() }](){
+	PostTimerEvent(2000, [id{ npc.GetID() }](){
 		objManager.AccessWithValue(id, [](auto& obj, auto& map) {
 			auto& npc = (NPC&)obj;
 			npc.Update(map);

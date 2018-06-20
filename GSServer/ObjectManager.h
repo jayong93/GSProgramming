@@ -67,12 +67,18 @@ class Client : public HPObject {
 	BYTE level;
 	DWORD exp;
 	DWORD nextExp;
+	bool canMove{ true };
+	bool canAttack{ true };
 
 public:
 	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, int hp, const wchar_t* gameID) : receiver{ r }, HPObject{ id, x, y, c, ObjectType::PLAYER, hp }, gameID{ gameID }, level{ 1 }, exp{ 0 }, nextExp{ 100 } { r->owner = this; }
 	Client(WORD id, MessageReceiver* r, const Color& c, WORD x, WORD y, const wchar_t* gameID) : Client{ id, r, c, x, y, 100, gameID } {}
 	Client(WORD id, MessageReceiver* r, const Color& c, const DBData& data) : Client{ id, r, c, 0, 0, L"" } { SetDBData(data); }
 
+	auto CanAttack() { ULock lg{ lock }; return canAttack; }
+	auto CanMove() { ULock lg{ lock }; return canMove; }
+	auto SetAttack(bool t) { ULock lg{ lock }; canAttack = t; }
+	auto SetMove(bool t) { ULock lg{ lock }; canMove = t; }
 	auto& GetReceiver() const { return *receiver; }
 	auto GetSocket() const { return receiver->s; }
 	auto& GetGameID() const { return gameID; }
