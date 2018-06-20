@@ -42,7 +42,7 @@ void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, u
 		swprintf_s(text, L"%s가 플레이어를 공격해 %d의 피해를 입혔습니다", name, damage);
 		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgChat{ text });
 
-		if (pHP <= 0) {
+		if (pHP <= 0 && !player.IsDisabled()) {
 			player.SetDisable(true);
 			UpdateViewList(player.GetID(), map);
 			networkManager.SendNetworkMessage(player.GetSocket(), *new MsgRemoveObject{ player.GetID() });
