@@ -34,6 +34,14 @@ void MonsterChaseUpdate(HardCoded& npc, ObjectMap& map, Condition&& rangeCond, u
 	if (rangeCond(xOffset, yOffset)) {
 		const auto pHP = player.AddHP(-(int)damage);
 		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgStatChange{ pHP, player.GetLevel(), player.GetExp() });
+
+		TCHAR text[MAX_CHAT_LEN] = { 0, };
+		const wchar_t* name{ nullptr };
+		if (npc.GetType() == ObjectType::MELEE) name = L"근거리 몬스터";
+		else name = L"원거리 몬스터";
+		swprintf_s(text, L"%s가 플레이어를 공격해 %d의 피해를 입혔습니다", name, damage);
+		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgChat{ text });
+
 		if (pHP <= 0) {
 			player.SetDisable(true);
 			UpdateViewList(player.GetID(), map);
@@ -84,6 +92,13 @@ void MonsterAttacked(HardCoded& npc, Client& player, ObjectMap& map, unsigned in
 		if (obj.GetType() != ObjectType::PLAYER) continue;
 		auto& client = (Client&)obj;
 		networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherStatChange{ npc.GetID(), hp, npc.GetMaxHP(), 0, 0 });
+
+		TCHAR text[MAX_CHAT_LEN] = { 0, };
+		const wchar_t* name{ nullptr };
+		if (npc.GetType() == ObjectType::MELEE) name = L"근거리 몬스터";
+		else name = L"원거리 몬스터";
+		swprintf_s(text, L"플레이어가 %s를 공격해 %d의 피해를 입혔습니다", name, 10);
+		networkManager.SendNetworkMessage(player.GetSocket(), *new MsgChat{ text });
 	}
 
 
