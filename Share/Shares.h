@@ -5,6 +5,7 @@
 
 enum class MsgTypeCS { NONE, LOGIN, LOGOUT, MOVE, ATTACK, CHAT, TELEPORT };
 enum class MsgTypeSC { NONE, LOGIN_OK, LOGIN_FAIL, POSITION, CHAT, STAT_CHANGE, REMOVE_OBJ, ADD_OBJ, SET_COLOR, OTHER_CHAT, OTHER_STAT_CHANGE };
+enum class ConnectionType {NORMAL, HOTSPOT};
 enum class ObjectType { OBJECT, PLAYER, MELEE, RANGE };
 
 constexpr u_short GS_PORT = 9011;
