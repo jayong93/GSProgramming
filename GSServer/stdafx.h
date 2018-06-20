@@ -25,3 +25,4 @@
 #include <variant>
 #include <type_traits>
 #include <cassert>
+#include <optional>

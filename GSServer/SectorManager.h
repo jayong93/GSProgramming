@@ -1,15 +1,15 @@
 #pragma once
 
-using Sector = std::unordered_set<unsigned int>;
+using Sector = std::unordered_set<WORD>;
 
 class SectorManager {
 public:
 	SectorManager();
-	unsigned int PositionToSectorIndex(unsigned int x, unsigned int y);
-	std::vector<Sector> GetNearSectors(unsigned int sectorIdx);
-	bool UpdateSector(unsigned int id, unsigned int oldX, unsigned int oldY, unsigned int newX, unsigned int newY);
-	bool AddToSector(unsigned int id, unsigned int x, unsigned int y);
-	bool RemoveFromSector(unsigned int id, unsigned int x, unsigned int y);
+	unsigned int PositionToSectorIndex(WORD x, WORD y);
+	std::vector<Sector> GetNearSectors(WORD sectorIdx);
+	bool UpdateSector(WORD id, WORD oldX, WORD oldY, WORD newX, WORD newY);
+	bool AddToSector(WORD id, WORD x, WORD y);
+	bool RemoveFromSector(WORD id, WORD x, WORD y);
 
 private:
 	std::vector<Sector> sectorList;

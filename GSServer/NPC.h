@@ -7,7 +7,7 @@ enum class AttackType { PEACEFUL, AGGRESSIVE };
 
 class NPC : public HPObject {
 public:
-	NPC(unsigned int id, short x, short y, const Color& color, ObjectType type, int hp) : HPObject{ id, x, y, color, type, hp } {}
+	NPC(WORD id, WORD x, WORD y, const Color& color, ObjectType type, int hp) : HPObject{ id, x, y, color, type, hp } {}
 	virtual ~NPC() {}
 
 	virtual void PlayerMove(Client& player, ObjectMap& map) = 0;
@@ -21,7 +21,7 @@ class HardcodedNPC : public NPC {
 public:
 	using State = std::variant<Idle, States...>;
 
-	HardcodedNPC(unsigned int id, short x, short y, int hp, Idle&& initState) : NPC{ id, x, y, GetColor(), Type, hp }, state{ std::forward<Idle>(initState) } {}
+	HardcodedNPC(WORD id, WORD x, WORD y, int hp, Idle&& initState) : NPC{ id, x, y, GetColor(), Type, hp }, state{ std::forward<Idle>(initState) } {}
 
 	virtual void PlayerMove(Client& player, ObjectMap& map) {
 		std::visit([this, &player, &map](auto&& s) {s.PlayerMove(*this, player, map); }, state);
@@ -49,12 +49,12 @@ private:
 	}
 };
 
-using AMeleeMonster = HardcodedNPC <ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase>;
+using AMeleeMonster = HardcodedNPC<ObjectType::MELEE, AttackType::AGGRESSIVE, MeleeIdle, MeleeChase>;
 using ARangeMonster = HardcodedNPC<ObjectType::RANGE, AttackType::AGGRESSIVE, RangeIdle, RangeChase>;
 
 class AI_NPC : public NPC {
 public:
-	AI_NPC(unsigned int id, short x, short y, const Color& color, const char* scriptName, int hp) : NPC{ id, x, y, color, ObjectType::OBJECT, hp }, lua{ id, scriptName } {};
+	AI_NPC(WORD id, WORD x, WORD y, const Color& color, const char* scriptName, int hp) : NPC{ id, x, y, color, ObjectType::OBJECT, hp }, lua{ id, scriptName } {};
 
 	virtual void PlayerMove(Client& player, ObjectMap& map);
 	virtual void PlayerLeave(Client& player, ObjectMap& map);

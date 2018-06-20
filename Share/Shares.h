@@ -1,16 +1,16 @@
 #pragma once
 #include "MsgReconstructor.h"
+#include <mutex>
 #include <cassert>
 
-enum class MsgTypeCS { NONE, CS_MOVE_UP, CS_MOVE_DOWN, CS_MOVE_LEFT, CS_MOVE_RIGHT, CS_CHAT, CS_TELEPORT };
-enum class MsgTypeSC { NONE, SC_MOVE_OBJ, SC_PUT_OBJ, SC_REMOVE_OBJ, SC_CHAT, SC_GIVE_ID, SC_DETAIL_DATA, SC_SET_HP, SC_SET_MAX_HP };
-enum class ConnectionType { NORMAL, HOTSPOT };
+enum class MsgTypeCS { NONE, LOGIN, LOGOUT, MOVE, ATTACK, CHAT, TELEPORT };
+enum class MsgTypeSC { NONE, LOGIN_OK, LOGIN_FAIL, POSITION, CHAT, STAT_CHANGE, REMOVE_OBJ, ADD_OBJ, SET_COLOR, OTHER_CHAT, OTHER_STAT_CHANGE };
 enum class ObjectType { OBJECT, PLAYER, MELEE, RANGE };
 
 constexpr u_short GS_PORT = 9011;
 constexpr int BOARD_W = 400, BOARD_H = 400; // unsigned로 선언하지 말 것. 플레이어 좌표를 min 하는 과정에서 unsigned로 변환되어 -1이 99가 됨
 constexpr int VIEW_SIZE = 21;
-constexpr int PLAYER_VIEW_SIZE = 15;
+constexpr int PLAYER_VIEW_SIZE = 21;
 constexpr unsigned int MAX_PLAYER = 10000;
 constexpr int MAX_GAME_ID_LEN = 10;
 constexpr int MAX_CHAT_LEN = 100;
@@ -18,6 +18,27 @@ constexpr int MAX_CHAT_LEN = 100;
 void err_quit_wsa(LPCTSTR msg);
 void err_quit_wsa(DWORD errCode, LPCTSTR msg);
 void print_network_error(DWORD errCode);
+
+template <typename T>
+class Locked {
+public:
+	Locked() {}
+	
+	template <typename Func>
+	auto Access(Func func) {
+		std::unique_lock<std::mutex> lg{ lock };
+		return func(data);
+	}
+
+	T GetClone() {
+		std::unique_lock<std::mutex> lg{ lock };
+		return data;
+	}
+
+private:
+	std::mutex lock;
+	T data;
+};
 
 #pragma pack(push, 1)
 struct Color {
@@ -35,68 +56,117 @@ struct MsgBase {
 	MsgBase(unsigned char len, Type type) : len{ len }, type{ (unsigned char)type } {}
 };
 
+// C->S
+
+struct MsgLogin : public MsgBase {
+	wchar_t gameID[MAX_GAME_ID_LEN];
+	MsgLogin(const wchar_t* id) : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::LOGIN } {
+		lstrcpynW(gameID, id, MAX_GAME_ID_LEN);
+	}
+};
+
+struct MsgLogout : public MsgBase {
+	MsgLogout() : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::LOGOUT } {}
+};
+
 struct MsgInputMove : public MsgBase {
-	MsgInputMove(MsgTypeCS type) : MsgBase{ sizeof(MsgInputMove), type } {}
+	BYTE direction;
+	MsgInputMove(BYTE direction) : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::MOVE }, direction{ direction } {}
 };
 
-struct MsgGiveID : public MsgBase {
-	unsigned int id;
-
-	explicit MsgGiveID(unsigned int id) : MsgBase{ sizeof(MsgGiveID), MsgTypeSC::SC_GIVE_ID }, id{ id } {}
+struct MsgAttack : public MsgBase {
+	MsgAttack() : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::ATTACK } {}
 };
 
-struct MsgMoveObject : public MsgBase {
+struct MsgSendChat : public MsgBase {
+	wchar_t chat[MAX_CHAT_LEN];
+	MsgSendChat(const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::CHAT } {
+		lstrcpynW(chat, msg, MAX_CHAT_LEN);
+	}
+};
+
+// S->C
+
+struct MsgLoginOK : public MsgBase {
 	WORD id;
 	WORD x, y;
-	MsgMoveObject(unsigned int id, short x, short y) : MsgBase{ sizeof(MsgMoveObject), MsgTypeSC::SC_MOVE_OBJ }, id( id ), x( x ), y( y ) {}
+	WORD hp;
+	BYTE level;
+	DWORD exp;
+
+	explicit MsgLoginOK(WORD id, WORD x, WORD y, WORD hp, BYTE level, DWORD exp) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::LOGIN_OK }, id{ id }, x{ x }, y{ y }, hp{ hp }, level{ level }, exp{ exp } {}
+};
+
+struct MsgLoginFail : public MsgBase {
+	MsgLoginFail() : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::LOGIN_FAIL } {}
+};
+
+struct MsgSetPosition : public MsgBase {
+	WORD id;
+	WORD x, y;
+	MsgSetPosition(WORD id, WORD x, WORD y) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::POSITION }, id(id), x(x), y(y) {}
+};
+
+struct MsgChat : public MsgBase {
+	wchar_t msg[MAX_CHAT_LEN];
+
+	MsgChat(const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::CHAT } {
+		lstrcpynW(this->msg, msg, MAX_CHAT_LEN);
+	}
+};
+
+struct MsgStatChange : public MsgBase {
+	WORD hp;
+	BYTE level;
+	DWORD exp;
+
+	MsgStatChange(WORD hp, BYTE level, DWORD exp) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::STAT_CHANGE }, hp{ hp }, level{ level }, exp{ exp } {}
 };
 
 struct MsgRemoveObject : public MsgBase {
 	WORD id;
-	explicit MsgRemoveObject(unsigned int id) : MsgBase{ sizeof(MsgRemoveObject), MsgTypeSC::SC_REMOVE_OBJ }, id( id ) {}
+	explicit MsgRemoveObject(WORD id) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::REMOVE_OBJ }, id{ id } {}
 };
 
-struct MsgPutObject : public MsgBase {
+struct MsgAddObject : public MsgBase {
 	WORD id;
+	BYTE objType;
 	WORD x, y;
 
-	MsgPutObject(unsigned int id, short x, short y) : MsgBase{ sizeof(MsgPutObject), MsgTypeSC::SC_PUT_OBJ }, id( id ), x( x ), y( y ) {}
+	MsgAddObject(WORD id, ObjectType type, WORD x, WORD y) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::ADD_OBJ }, id{ id }, objType{ (BYTE)type }, x{ x }, y{ y } {}
 };
 
-struct MsgDetailData : public MsgBase {
-	unsigned int id;
+struct MsgSetColor : public MsgBase {
+	WORD id;
 	Color color;
-	ObjectType objType;
 
-	MsgDetailData(unsigned int id, Color color, ObjectType type) : MsgBase{ sizeof(MsgDetailData), MsgTypeSC::SC_DETAIL_DATA }, id{ id }, color { color }, objType{ type } {}
+	MsgSetColor(WORD id, const Color& color) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::SET_COLOR }, id{ id }, color{ color } {}
 };
 
-struct MsgTeleport : public MsgBase {
-	short x, y;
-
-	MsgTeleport(short x, short y) : MsgBase{ sizeof(MsgTeleport), MsgTypeCS::CS_TELEPORT }, x{ x }, y{ y } {}
-};
-
-struct MsgChat : public MsgBase {
-	WORD from;
+struct MsgOtherChat : public MsgBase {
+	wchar_t from[MAX_GAME_ID_LEN];
 	wchar_t msg[MAX_CHAT_LEN];
 
-	MsgChat(unsigned int from, const wchar_t* msg) : MsgBase{ sizeof(MsgChat), MsgTypeSC::SC_CHAT }, from( from ) {
-		lstrcpyn(this->msg, msg, MAX_CHAT_LEN);
+	MsgOtherChat(const wchar_t* from, const wchar_t* msg) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_CHAT } {
+		lstrcpynW(this->from, from, MAX_GAME_ID_LEN);
+		lstrcpynW(this->msg, msg, MAX_CHAT_LEN);
 	}
 };
 
-struct MsgSetHP : public MsgBase {
-	unsigned int id;
-	int hp;
+struct MsgOtherStatChange : public MsgBase {
+	WORD id;
+	WORD hp;
+	WORD maxHP;
+	BYTE level;
+	DWORD exp;
 
-	MsgSetHP(unsigned int id, int hp) : MsgBase{ sizeof(MsgSetHP), MsgTypeSC::SC_SET_HP }, id{ id }, hp{ hp } {}
+	MsgOtherStatChange(WORD id, WORD hp, WORD maxHP, BYTE level, DWORD exp) : MsgBase{ sizeof(decltype(*this)), MsgTypeSC::OTHER_STAT_CHANGE }, id{ id }, hp{ hp }, maxHP{ maxHP }, level { level }, exp{ exp } {}
 };
 
-struct MsgSetMaxHP : public MsgBase {
-	unsigned int id;
-	int maxHP;
+struct MsgTeleport : public MsgBase {
+	WORD x, y;
 
-	MsgSetMaxHP(unsigned int id, int maxHP) : MsgBase{ sizeof(MsgSetMaxHP), MsgTypeSC::SC_SET_MAX_HP }, id{ id }, maxHP{ maxHP } {}
+	MsgTeleport(WORD x, WORD y) : MsgBase{ sizeof(decltype(*this)), MsgTypeCS::TELEPORT }, x{ x }, y{ y } {}
 };
+
 #pragma pack(pop)

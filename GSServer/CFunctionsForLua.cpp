@@ -21,8 +21,8 @@ int CFSendMessage::operator()(lua_State * L)
 	WORD myId = this->obj.GetID();
 	auto nearList = objManager.GetNearList(myId, this->map);
 	for (auto& id : nearList) {
-		if (objManager.IsPlayer(id))
-			networkManager.SendNetworkMessageWithID(id, *new MsgChat{ myId , msg.c_str() }, this->map);
+		//if (objManager.IsPlayer(id))
+			//networkManager.SendNetworkMessageWithID(id, *new MsgChat{ myId , msg.c_str() }, this->map);
 	}
 	return 0;
 }
