@@ -32,10 +32,10 @@ public:
 
 	bool Insert(std::unique_ptr<Object>&& ptr);
 	bool Insert(Object& o);
-	bool Remove(unsigned int id);
+	bool Remove(WORD id);
 
 	template <typename Func>
-	bool Update(unsigned int id, Func func) {
+	bool Update(WORD id, Func func) {
 		std::unique_lock<std::mutex> lg{ lock };
 		auto it = data.find(id);
 		if (data.end() == it) return false;
@@ -49,7 +49,7 @@ public:
 		return func(data);
 	}
 
-	static bool IsPlayer(int id) { return id < MAX_PLAYER; }
+	static bool IsPlayer(WORD id) { return id < MAX_PLAYER; }
 
 	ObjectManager(const ObjectManager&) = delete;
 	ObjectManager& operator=(const ObjectManager&) = delete;

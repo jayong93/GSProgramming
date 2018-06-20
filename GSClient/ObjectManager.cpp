@@ -11,7 +11,7 @@ bool ObjectManager::Insert(Object& o) {
 	auto result = this->data.emplace(o.id, std::unique_ptr<Object>{&o});
 	return result.second;
 }
-bool ObjectManager::Remove(unsigned int id) {
+bool ObjectManager::Remove(WORD id) {
 	std::unique_lock<std::mutex> lg{ this->lock };
 	auto removedCount = this->data.erase(id);
 	return removedCount == 1;

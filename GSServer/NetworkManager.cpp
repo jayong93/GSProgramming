@@ -2,8 +2,12 @@
 #include "ObjectManager.h"
 #include "NetworkManager.h"
 #include "LuaFunctionCall.h"
+#include "NPC.h"
 #include "Globals.h"
+#include "GSServer.h"
 #include <cassert>
+
+static std::unordered_set<std::wstring> loginedNames;
 
 void NetworkManager::SendNetworkMessageWithID(int id, MsgBase & msg, ObjectMap& map)
 {
@@ -21,7 +25,7 @@ void NetworkManager::SendNetworkMessage(SOCKET sock, MsgBase & msg)
 	this->Send(*eov);
 }
 
-void NetworkManager::RecvNetworkMessage(Client& c)
+void NetworkManager::RecvNetworkMessage(MessageReceiver& c)
 {
 	auto eov = new ExtOverlappedNetwork{ c };
 	this->Recv(*eov);
@@ -29,7 +33,7 @@ void NetworkManager::RecvNetworkMessage(Client& c)
 
 void NetworkManager::Send(ExtOverlappedNetwork & eov)
 {
-	assert(eov.msg, "The send eov has no msg");
+	assert(eov.msg && "The send eov has no msg");
 	WSABUF wb;
 	wb.buf = (char*)eov.msg.get();
 	wb.len = eov.msg->len;
@@ -42,8 +46,8 @@ void NetworkManager::Send(ExtOverlappedNetwork & eov)
 
 void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 {
-	assert(eov.client != nullptr, "The recv eov has no client");
-	auto& msgRecon = eov.client->GetMessageConstructor();
+	assert(eov.receiver != nullptr && "The recv eov has no receiver");
+	auto& msgRecon = eov.receiver->msgRecon;
 	WSABUF wb;
 	wb.buf = msgRecon.GetBuffer();
 	wb.len = msgRecon.GetSize();
@@ -55,46 +59,123 @@ void NetworkManager::Recv(ExtOverlappedNetwork & eov)
 	if (error > 0) print_network_error(error);
 }
 
+ServerMsgHandler::ServerMsgHandler(MessageReceiver & receiver) : receiver{ receiver } {}
+
 void ServerMsgHandler::operator()(SOCKET s, const MsgBase & msg)
 {
-	if (nullptr == client) return;
-	switch (msg.type) {
-	case MsgType::CS_INPUT_MOVE:
+	auto rType = (MsgTypeCS)msg.type;
+	switch (rType) {
+	case MsgTypeCS::LOGIN:
 	{
-		auto& rMsg = *(const MsgInputMove*)(&msg);
-		const auto[oldX, oldY] = client->GetPos();
-		client->Move(rMsg.dx, rMsg.dy);
+		auto& rMsg{ (MsgLogin&)msg };
+		std::wstring gameID{ rMsg.gameID };
+		WORD newX, newY;
+		newX = posRange(rndGen); newY = posRange(rndGen);
+		AddNewClient(s, gameID.c_str(), newX, newY, receiver);
+	}
+	break;
+	case MsgTypeCS::LOGOUT:
+	{
+		closesocket(s);
+		RemoveClient(receiver.owner);
+	}
+	break;
+	case MsgTypeCS::MOVE:
+	{
+		auto& rMsg = (MsgInputMove&)msg;
+		if (!receiver.owner->CanMove()) return;
+		short dx{ 0 }, dy{ 0 };
+		switch (rMsg.direction) {
+		case 0: // UP
+			dy = -1;
+			break;
+		case 1: // DOWN
+			dy = 1;
+			break;
+		case 2: //LEFT
+			dx = -1;
+			break;
+		case 3: // RIGHT
+			dx = 1;
+			break;
+		default:
+			return;
+		}
+		auto& client = receiver.owner;
+		client->Move(dx, dy);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
-		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgSetPosition(id, newX, newY));
 
-		objManager.Access([clientId{ id }, newX, newY](auto& map) {
+		objManager.Access([client, clientId{ id }](auto& map) {
 			UpdateViewList(clientId, map);
-			auto nearList = objManager.GetNearList(clientId, map);
-			for (auto& id : nearList) {
-				if (ObjectManager::IsPlayer(id)) continue;
-				auto it = map.find(id);
-				if (map.end() == it) continue;
-				auto& npc = *reinterpret_cast<AI_NPC*>(it->second.get());
+		});
 
-				LuaCall call("player_moved", { (long long)clientId, (long long)newX, (long long)newY }, 0);
-				npc.lua.Call(call, npc, map);
+		receiver.owner->SetMove(false);
+		PostTimerEvent(1000, [id{ receiver.owner->GetID() }]() {
+			objManager.Update(id, [](Object& obj) {
+				auto& client = (Client&)obj;
+				client.SetMove(true);
+			});
+		});
+	}
+	break;
+	case MsgTypeCS::ATTACK:
+	{
+		auto& rMsg{ (MsgAttack&)msg };
+		if (!receiver.owner->CanAttack()) return;
+		auto& client = receiver.owner;
+
+		auto monsterList = objManager.Access([&client](ObjectMap& map) {
+			return objManager.GetNearList(client->GetID(), map, [](Object& me, Object& other) {
+				const auto[myX, myY] = me.GetPos();
+				const auto[ox, oy] = other.GetPos();
+				return (std::abs(myX - ox) + std::abs(myY - oy)) <= 1 && (other.GetType() != ObjectType::OBJECT) && (other.GetType() != ObjectType::PLAYER);
+			});
+		});
+
+		objManager.Access([client, &monsterList](ObjectMap& map) {
+			for (auto id : monsterList) {
+				auto it = map.find(id); if (map.end() == it) continue;
+				auto& npc = *(NPC*)it->second.get();
+				npc.Attacked(*client, map);
+			}
+		});
+
+		receiver.owner->SetAttack(false);
+		PostTimerEvent(1000, [id{ receiver.owner->GetID() }]() {
+			objManager.Update(id, [](Object& obj) {
+				auto& client = (Client&)obj;
+				client.SetAttack(true);
+			});
+		});
+	}
+	break;
+	case MsgTypeCS::CHAT:
+	{
+		auto& rMsg = *(const MsgSendChat*)&msg;
+		auto& client = receiver.owner;
+
+		objManager.Access([&rMsg, id{ client->GetID() }](ObjectMap& map) {
+			for (auto& it : map) {
+				if (it.second->GetType() == ObjectType::PLAYER) {
+					auto& client = (Client&)*it.second;
+					networkManager.SendNetworkMessage(client.GetSocket(), *new MsgOtherChat{ client.GetGameID().c_str(), rMsg.chat });
+				}
 			}
 		});
 	}
 	break;
-	case MsgType::CS_TELEPORT:
+	case MsgTypeCS::TELEPORT:
 	{
 		auto& rMsg = *(const MsgTeleport*)&msg;
-		const auto[oldX, oldY] = client->GetPos();
+		auto& client = receiver.owner;
 		client->SetPos(rMsg.x, rMsg.y);
 		const auto[newX, newY] = client->GetPos();
 		const auto id = client->GetID();
 
-		sectorManager.UpdateSector(id, oldX, oldY, newX, newY);
-		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgMoveObject{ id, newX, newY });
+		networkManager.SendNetworkMessage(client->GetSocket(), *new MsgSetPosition(id, newX, newY));
 
 		objManager.Access([id](auto& map) {
 			UpdateViewList(id, map);
@@ -108,7 +189,8 @@ void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtO
 {
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(ov->client);
+		if (ov->receiver->owner)
+			RemoveClient(ov->receiver->owner);
 		return;
 	}
 }
@@ -117,16 +199,17 @@ void RecvCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtO
 {
 	if (0 != error || 0 == transferred) {
 		if (0 != error) print_network_error(error);
-		RemoveClient(ov->client);
+		if (ov->receiver->owner)
+			RemoveClient(ov->receiver->owner);
 		return;
 	}
 
 	// 하나의 소켓에 대한 Recv는 동시간에 1개 밖에 존재하지 않기 때문에 client에 lock을 할 필요 없음
-	auto& msgRecon = ov->client->GetMessageConstructor();
+	auto& msgRecon = ov->receiver->msgRecon;
 	msgRecon.AddSize(transferred);
 	msgRecon.Reconstruct(ov->s);
 
-	networkManager.RecvNetworkMessage(*ov->client);
+	networkManager.RecvNetworkMessage(*ov->receiver);
 }
 
 
@@ -134,4 +217,8 @@ ExtOverlappedEvent::ExtOverlappedEvent(const EventBase & msg) : ExtOverlappedBas
 
 ExtOverlappedEvent::ExtOverlappedEvent(std::unique_ptr<const EventBase>&& msg) : ExtOverlappedBase{ false }, msg{ std::move(msg) } {}
 
-ExtOverlappedNetwork::ExtOverlappedNetwork(Client & client) : ExtOverlappedBase{ true }, s{ client.GetSocket() }, client{ &client } {}
+ExtOverlappedNetwork::ExtOverlappedNetwork(MessageReceiver & receiver) : ExtOverlappedBase{ true }, s{ receiver.s }, receiver{ &receiver } {}
+
+MessageReceiver::MessageReceiver(SOCKET s, size_t size, const ServerMsgHandler & handler) : s{ s }, msgRecon{ size, handler } {}
+
+MessageReceiver::MessageReceiver(SOCKET s, size_t size) : MessageReceiver{ s, size, ServerMsgHandler{*this} } {}

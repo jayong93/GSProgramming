@@ -1,7 +1,8 @@
 #pragma once
 #include "../Share/Shares.h"
-#include "Event.h"
 #include "typedef.h"
+
+class EventBase;
 
 struct ExtOverlappedBase {
 	WSAOVERLAPPED ov;
@@ -12,13 +13,13 @@ struct ExtOverlappedBase {
 
 struct ExtOverlappedNetwork : public ExtOverlappedBase {
 	SOCKET s;
-	Client* client;
+	MessageReceiver* receiver;
 	std::unique_ptr<MsgBase> msg;
 	bool isRecv{ false };
 
-	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ &msg } {}
-	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, client{ nullptr }, msg{ std::move(msg) } {}
-	ExtOverlappedNetwork(Client& client);
+	ExtOverlappedNetwork(SOCKET s, MsgBase& msg) : ExtOverlappedBase{ true }, s{ s }, receiver{ nullptr }, msg{ &msg } {}
+	ExtOverlappedNetwork(SOCKET s, std::unique_ptr<MsgBase>&& msg) : ExtOverlappedBase{ true }, s{ s }, receiver{ nullptr }, msg{ std::move(msg) } {}
+	ExtOverlappedNetwork(MessageReceiver& client);
 
 	ExtOverlappedNetwork(const ExtOverlappedNetwork&) = delete;
 	ExtOverlappedNetwork& operator=(const ExtOverlappedNetwork&) = delete;
@@ -37,19 +38,27 @@ class NetworkManager {
 public:
 	void SendNetworkMessageWithID(int id, MsgBase& msg, ObjectMap& map);
 	void SendNetworkMessage(SOCKET sock, MsgBase& msg);
-	void RecvNetworkMessage(Client& sock);
+	void RecvNetworkMessage(MessageReceiver& sock);
 private:
 	void Send(ExtOverlappedNetwork& eov);
 	void Recv(ExtOverlappedNetwork& eov);
 };
 
 struct ServerMsgHandler {
-	Client* client;
+	MessageReceiver& receiver;
 
-	ServerMsgHandler() : client{ nullptr } {}
-	ServerMsgHandler(Client& c) : client{ &c } {}
+	ServerMsgHandler(MessageReceiver& receiver);
 	void operator()(SOCKET s, const MsgBase& msg);
 	~ServerMsgHandler() {}
+};
+
+struct MessageReceiver {
+	MsgReconstructor<ServerMsgHandler> msgRecon;
+	SOCKET s;
+	Client* owner{ nullptr };
+
+	MessageReceiver(SOCKET s, size_t size, const ServerMsgHandler& handler);
+	MessageReceiver(SOCKET s, size_t size = 100);
 };
 
 void SendCompletionCallback(DWORD error, DWORD transferred, std::unique_ptr<ExtOverlappedNetwork>& ov);

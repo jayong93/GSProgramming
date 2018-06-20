@@ -9,14 +9,14 @@ SectorManager::SectorManager()
 	sectorList.resize(sectorNum);
 }
 
-unsigned int SectorManager::PositionToSectorIndex(unsigned int x, unsigned int y)
+unsigned int SectorManager::PositionToSectorIndex(WORD x, WORD y)
 {
 	const auto sectorX = x / VIEW_SIZE;
 	const auto sectorY = y / VIEW_SIZE;
 	return sectorY * int(std::ceil(BOARD_W / (double)VIEW_SIZE)) + sectorX;
 }
 
-std::vector<Sector> SectorManager::GetNearSectors(unsigned int sectorIdx)
+std::vector<Sector> SectorManager::GetNearSectors(WORD sectorIdx)
 {
 	std::vector<Sector> nearSectors;
 	const auto horiSectorNum = int(std::ceil(BOARD_W / (double)VIEW_SIZE));
@@ -37,7 +37,7 @@ std::vector<Sector> SectorManager::GetNearSectors(unsigned int sectorIdx)
 	return nearSectors;
 }
 
-bool SectorManager::UpdateSector(unsigned int id, unsigned int oldX, unsigned int oldY, unsigned int newX, unsigned int newY)
+bool SectorManager::UpdateSector(WORD id, WORD oldX, WORD oldY, WORD newX, WORD newY)
 {
 	std::unique_lock<decltype(this->lock)> lg{ this->lock };
 	auto oldIdx = this->PositionToSectorIndex(oldX, oldY);
@@ -56,7 +56,7 @@ bool SectorManager::UpdateSector(unsigned int id, unsigned int oldX, unsigned in
 	return true;
 }
 
-bool SectorManager::AddToSector(unsigned int id, unsigned int x, unsigned int y)
+bool SectorManager::AddToSector(WORD id, WORD x, WORD y)
 {
 	std::unique_lock<decltype(this->lock)> lg{ this->lock };
 	auto idx = this->PositionToSectorIndex(x, y);
@@ -71,7 +71,7 @@ bool SectorManager::AddToSector(unsigned int id, unsigned int x, unsigned int y)
 	return true;
 }
 
-bool SectorManager::RemoveFromSector(unsigned int id, unsigned int x, unsigned int y)
+bool SectorManager::RemoveFromSector(WORD id, WORD x, WORD y)
 {
 	ULock lg{ this->lock };
 	auto idx = this->PositionToSectorIndex(x, y);

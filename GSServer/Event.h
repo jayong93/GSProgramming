@@ -1,4 +1,5 @@
 #pragma once
+#include "NetworkManager.h"
 
 class EventBase {
 public:
@@ -22,4 +23,10 @@ private:
 template <typename Call>
 std::unique_ptr<EventBase> MakeEvent(Call&& call) {
 	return std::unique_ptr<EventBase>{new Event<Call>{std::forward<Call>(call)}};
+}
+
+template <typename Call>
+void PostEvent(Call&& call) {
+	auto eov = new ExtOverlappedEvent{ MakeEvent(std::forward<Call>(call)) };
+	PostQueuedCompletionStatus(iocpObject, 0, 0, (LPOVERLAPPED)eov);
 }
